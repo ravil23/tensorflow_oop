@@ -1,6 +1,7 @@
 import argparse
-import sys
 import os
+import sys
+import numpy as np
 from tensorflow.examples.tutorials.mnist import input_data
 
 # Include additional module
@@ -31,7 +32,7 @@ class MnistRNN(TFClassifier):
         with tf.variable_scope('output'):
             weights = tf.Variable(
                 tf.truncated_normal([hidden_size, output_size],
-                                    stddev=1.0 / math.sqrt(float(hidden_size))))
+                                    stddev=1.0 / np.sqrt(float(hidden_size))))
             biases = tf.Variable(tf.zeros([output_size]))
             outputs = tf.nn.xw_plus_b(rnn_outputs[:,-1], weights, biases)
         return outputs

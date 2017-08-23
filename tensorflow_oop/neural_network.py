@@ -2,7 +2,13 @@ import tensorflow as tf
 import numpy as np
 import os
 import time
-from dataset import *
+import sys
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+include_dir = os.path.join(script_dir, '../')
+if include_dir not in sys.path:
+    sys.path.append(include_dir)
+from tensorflow_oop.dataset import *
 
 # Set logging level.
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'

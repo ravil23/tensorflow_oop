@@ -1,6 +1,7 @@
 import unittest
 import sys
 import os
+import numpy as np
 
 # Include additional module
 script_dir = os.path.dirname(os.path.abspath(__file__))

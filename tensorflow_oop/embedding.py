@@ -1,5 +1,12 @@
-import embedding
-from neural_network import *
+import warnings
+import sys
+import os
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+include_dir = os.path.join(script_dir, '../')
+if include_dir not in sys.path:
+    sys.path.append(include_dir)
+from tensorflow_oop.neural_network import *
 
 class TFTripletset(TFDataset):
 

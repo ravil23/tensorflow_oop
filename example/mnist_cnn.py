@@ -1,6 +1,7 @@
 import argparse
-import sys
 import os
+import sys
+import numpy as np
 from tensorflow.examples.tutorials.mnist import input_data
 
 # Include additional module

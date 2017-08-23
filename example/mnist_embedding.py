@@ -1,6 +1,7 @@
 import argparse
-import sys
 import os
+import sys
+import numpy as np
 from tensorflow.examples.tutorials.mnist import input_data
 
 # Include additional module
@@ -19,13 +20,13 @@ class MnistEmbedding(TFEmbedding):
         with tf.name_scope('hidden'):
             weights = tf.Variable(
                 tf.truncated_normal([input_size, hidden_size],
-                                    stddev=1.0 / math.sqrt(float(input_size))))
+                                    stddev=1.0 / np.sqrt(float(input_size))))
             biases = tf.Variable(tf.zeros([hidden_size]))
             hidden = tf.nn.relu(tf.nn.xw_plus_b(inputs, weights, biases))
         with tf.name_scope('output'):
             weights = tf.Variable(
                 tf.truncated_normal([hidden_size, output_size],
-                                    stddev=1.0 / math.sqrt(float(hidden_size))))
+                                    stddev=1.0 / np.sqrt(float(hidden_size))))
             biases = tf.Variable(tf.zeros([output_size]))
             outputs = tf.nn.xw_plus_b(hidden, weights, biases)
         embeddings = tf.nn.l2_normalize(outputs, 1)
