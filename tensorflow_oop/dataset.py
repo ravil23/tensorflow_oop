@@ -323,6 +323,23 @@ class TFDataset:
             self.data_ =  self.data_ * self.normalization_std_ +  self.normalization_mean_
         self.normalized_ = False
 
+    @check_initialization
+    def one_hot(self, encoding_size):
+        """One hot encoding."""
+        assert self.labels_ is not None, \
+            'Labels should be initialized: self.labels_ = %s' % self.labels_
+        assert self.labels_.dtype == np.int, \
+            'Labels type should be integer: self.labels_.dtype = %s' % self.labels_.dtype
+        assert np.min(self.labels_) >= 0, \
+            'Minimal label should not be less than zero: np.min(self.labels_) = %s' % np.min(self.labels_)
+        assert encoding_size > np.max(self.labels_), \
+            'Encoding size should be greater than maximal label: encoding_size = %s, np.max(self.labels_) = %s' % (encoding_size, np.max(self.labels_))
+        flattened_labels = self.labels_.flatten()
+        assert len(flattened_labels) == self.size_, \
+            'Flattened labels length should be equal to size of elements: len(flattened_labels) = %s, self.size_ = %s' % (len(flattened_labels), self.size_)
+        one_hot_labels = np.eye(encoding_size)[flattened_labels]
+        self.initialize(data=self.data_, labels=one_hot_labels)
+
     def __len__(self):
         return self.size_
 

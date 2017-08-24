@@ -288,5 +288,23 @@ class TestTFDataset(unittest.TestCase):
         self.assertFalse(self.dataset3.normalized_)
         self.assertTrue(np.all(self.dataset3.data_ == self.data))
 
+    def test_one_hot(self):
+        with self.assertRaises(AssertionError):
+            self.empty.one_hot(10)
+        with self.assertRaises(AssertionError):
+            self.dataset1.one_hot(10)
+        with self.assertRaises(AssertionError):
+            self.dataset2.one_hot(1)
+        dataset = TFDataset(data=[1,2,3], labels=[0.1, 0.2, 0.3])
+        with self.assertRaises(AssertionError):
+            dataset.one_hot(10)
+        dataset = TFDataset(data=[1,2,3], labels=[[1, 2, 3], [1, 2, 3], [1, 2, 3]])
+        with self.assertRaises(AssertionError):
+            dataset.one_hot(10)
+        self.dataset2.one_hot(4)
+        self.assertTrue(np.all(np.asarray(self.dataset2.labels_) == np.asarray([[0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])))
+        self.dataset3.one_hot(5)
+        self.assertTrue(np.all(np.asarray(self.dataset3.labels_) == np.asarray([[0, 1, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0]])))
+
 if __name__ == '__main__':
     unittest.main()
