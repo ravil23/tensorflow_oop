@@ -17,6 +17,7 @@ class TFTripletset(TFDataset):
     __slots__ = TFDataset.__slots__ + ['batch_positives_count_', 'batch_negatives_count_']
 
     def initialize(self, data, labels):
+        """Set data and labels."""
         assert data is not None and labels is not None, \
             'Data and labels should be passed: data = %s, labels = %s' % (data, labels)
         ndim = np.asarray(labels).ndim
@@ -25,6 +26,7 @@ class TFTripletset(TFDataset):
         super(TFTripletset, self).initialize(data, labels)
     
     def split(self, train_size, val_size, test_size, shuffle):
+        """Split dataset to train, validation and test set."""
         train_set, val_set, test_set = super(TFTripletset, self).split(train_size, val_size, test_size, shuffle)
         if train_set is not None:
             train_set = TFTripletset(data=train_set.data_, labels=train_set.labels_.flatten())
@@ -39,6 +41,7 @@ class TFTripletset(TFDataset):
 
     @check_initialization
     def set_batch_size(self, batch_size, batch_positives_count):
+        """Set batch size and positives count per batch."""
         assert batch_positives_count > 0, \
             'Positives count in batch should be greater than zero: batch_positives_count = %s' % batch_positives_count
         assert batch_positives_count < batch_size, \
@@ -49,6 +52,7 @@ class TFTripletset(TFDataset):
 
     @check_initialization
     def next_batch(self):
+        """Get next batch."""
         labels = self.labels_.flatten()
         labels_counts = np.bincount(labels)
         positive_keys = np.where(labels_counts >= self.batch_positives_count_)[0]
@@ -79,9 +83,9 @@ class TFEmbedding(TFNeuralNetwork):
         return tf.reduce_sum(diff, axis=2)
 
     def __init__(self, log_dir, inputs_shape, outputs_shape, inputs_type=tf.float32, outputs_type=tf.float32, reset_default_graph=True, metric_functions={}, **kwargs):
-
         if len(metric_functions) == 0:
             def max_accuracy(outputs, labels_placeholder):
+                """Pairwise binary classification accuracy."""
                 # Calculate distances
                 embedding_pos, embedding_neg = tf.dynamic_partition(outputs, partitions=tf.reshape(labels_placeholder, [-1]), num_partitions=2)
                 pos_dist = TFEmbedding.squared_distance(embedding_pos, embedding_pos)

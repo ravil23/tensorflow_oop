@@ -28,3 +28,10 @@ Usage examples for MNIST located in folder 'example'.
 
 ## Test
 Unittest scripts located in folder 'test'.
+
+## Uninstall
+Library uninstallation commands:
+```
+python setup.py install --record files.txt
+cat files.txt | xargs rm -rf
+```

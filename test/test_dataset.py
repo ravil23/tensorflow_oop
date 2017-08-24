@@ -154,7 +154,7 @@ class TestTFDataset(unittest.TestCase):
             self.dataset1.split(0, 0, -1, False)
         with self.assertRaises(AssertionError):
             self.dataset1.split(1, 0, 1, False)
-        
+
         # Test only data
         train, val, test = self.dataset1.split(1, 0, 0, False)
         self.assertTrue(isinstance(train, TFDataset))
@@ -268,7 +268,7 @@ class TestTFDataset(unittest.TestCase):
         self.assertTrue(np.all(np.asarray(dataset.normalization_mask_) == np.asarray([False, True])))
         self.assertTrue(np.all(dataset.normalization_mean_ == np.asarray([np.mean([1,3,5,7,9,11]), np.mean([2,4,6,8,10,12])])))
         self.assertTrue(np.all(dataset.normalization_std_  == np.asarray([np.std([1,3,5,7,9,11]),  np.std([2,4,6,8,10,12])])))
-        
+
         self.dataset3.normalize(mask=[True])
         self.assertTrue(self.dataset3.normalized_)
         self.assertTrue(np.all(np.asarray(self.dataset3.normalization_mask_) == np.asarray([True])))

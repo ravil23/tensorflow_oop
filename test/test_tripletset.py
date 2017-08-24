@@ -25,6 +25,41 @@ class TestTFTripletset(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.empty.initialize(data=None, labels=[[1,1], [2,2], [3,3]])
 
+    def test_split(self):
+        # Test only data
+        self.tripletset = TFTripletset(data=np.arange(100), labels=np.arange(100))
+        self.tripletset.set_batch_size(5, 3)
+        train, val, test = self.tripletset.split(1, 0, 0, False)
+        self.assertTrue(isinstance(train, TFTripletset))
+        train.batch_size_ = 5
+        train.batch_positives_count_ = 3
+        self.assertTrue(val is None)
+        self.assertTrue(test is None)
+
+        # Test only labels
+        self.tripletset.set_batch_size(5, 3)
+        train, val, test = self.tripletset.split(0, 0.5, 0.5, False)
+        self.assertTrue(train is None)
+        self.assertTrue(isinstance(val, TFTripletset))
+        val.batch_size_ = 5
+        val.batch_positives_count_ = 3
+        self.assertTrue(isinstance(test, TFTripletset))
+        test.batch_size_ = 5
+        test.batch_positives_count_ = 3
+
+        # Test different rates
+        self.tripletset.set_batch_size(5, 3)
+        train, val, test = self.tripletset.split(0.33, 0.33, 0.34, False)
+        self.assertTrue(isinstance(train, TFTripletset))
+        train.batch_size_ = 5
+        train.batch_positives_count_ = 3
+        self.assertTrue(isinstance(val, TFTripletset))
+        val.batch_size_ = 5
+        val.batch_positives_count_ = 3
+        self.assertTrue(isinstance(test, TFTripletset))
+        test.batch_size_ = 5
+        test.batch_positives_count_ = 3
+
     def test_batch_size(self):
         with self.assertRaises(AssertionError):
             self.tripletset.set_batch_size(1, -1)
