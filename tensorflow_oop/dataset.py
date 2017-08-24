@@ -25,7 +25,7 @@ class TFBatch:
             string += "%s: \n%s\n" % (attr, getattr(self, attr))
         return string[:-1]
 
-class TFDataset:
+class TFDataset(object):
 
     """
     Dataset structure.

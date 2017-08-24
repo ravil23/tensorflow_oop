@@ -14,7 +14,7 @@ class TFTripletset(TFDataset):
     Triplet generation dataset.
     """
 
-    __slots__ = TFDataset.__slots__ + ['batch_positives_count_', 'batch_negatives_count_', 'labels_counts_']
+    __slots__ = TFDataset.__slots__ + ['batch_positives_count_', 'batch_negatives_count_']
 
     def initialize(self, data, labels):
         assert data is not None and labels is not None, \
@@ -23,6 +23,19 @@ class TFTripletset(TFDataset):
         assert ndim == 1, \
             'Labels should be 1D dimension: labels.ndim = %s' % ndim
         super(TFTripletset, self).initialize(data, labels)
+    
+    def split(self, train_size, val_size, test_size, shuffle):
+        train_set, val_set, test_set = super(TFTripletset, self).split(train_size, val_size, test_size, shuffle)
+        if train_set is not None:
+            train_set = TFTripletset(data=train_set.data_, labels=train_set.labels_.flatten())
+            train_set.set_batch_size(self.batch_size_, self.batch_positives_count_)
+        if val_set is not None:
+            val_set = TFTripletset(data=val_set.data_, labels=val_set.labels_.flatten())
+            val_set.set_batch_size(self.batch_size_, self.batch_positives_count_)
+        if test_set is not None:
+            test_set = TFTripletset(data=test_set.data_, labels=test_set.labels_.flatten())
+            test_set.set_batch_size(self.batch_size_, self.batch_positives_count_)
+        return train_set, val_set, test_set
 
     @check_initialization
     def set_batch_size(self, batch_size, batch_positives_count):
