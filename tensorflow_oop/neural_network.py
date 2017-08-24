@@ -62,7 +62,7 @@ class TFNeuralNetwork(object):
         self.outputs_ = tf.identity(self.inference(self.data_placeholder_, **self.kwargs_), name='output_layer')
 
         # Loss function.
-        self.loss_ = tf.identity(self.loss_function(self.outputs_, self.labels_placeholder_, **self.kwargs_), name='loss')
+        self.loss_ = tf.identity(self.loss_function(self.outputs_, self.labels_placeholder_, **self.kwargs_), name='loss_function')
 
         # Evaluation options.
         self.metrics_ = {key : metric_functions[key](self.outputs_, self.labels_placeholder_) for key in metric_functions}
@@ -99,17 +99,19 @@ class TFNeuralNetwork(object):
         raise Exception('Loss function should be overwritten!')
         return loss
 
-    def fit(self, train_set, iteration_count,
+    def fit(self, train_set,
+            epoch_count=None,
+            iteration_count=None,
             optimizer=tf.train.RMSPropOptimizer,
             learning_rate=0.001,
-            epoch_count=None,
             val_set=None,
             summarizing_period=1,
             logging_period=100,
             checkpoint_period=10000,
             evaluation_period=10000):
         """Train model."""
-
+        assert epoch_count is not None or iteration_count is not None, \
+            'Epoch or iteration count should be passed: epoch_count = %s, iteration_count = %s' % (epoch_count, iteration_count)
         if epoch_count is not None:
             assert epoch_count > 0, \
                 'Epoch count should be greater than zero: epoch_count = %s' % epoch_count
@@ -287,7 +289,7 @@ class TFNeuralNetwork(object):
     @check_inputs_values
     def top_k(self, inputs_values, k):
         """Top k element."""
-        return self.sess_.run(tf.nn.top_k(self.data_placeholder_, k=k), feed_dict={
+        return self.sess_.run(tf.nn.top_k(self.outputs_, k=k), feed_dict={
             self.data_placeholder_: inputs_values,
         })
 
