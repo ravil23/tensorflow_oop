@@ -22,22 +22,71 @@ def check_inputs_values(function):
     return wrapper
 
 class TFNeuralNetwork(object):
+    #     TODO
+    # add metrics
+    # rename inputs, targets, outputs
+    # check training
+    # get summary
 
     """
     Basic neural network model.
     """
 
-    __slots__ = ['log_dir_', 'inputs_shape_', 'outputs_shape_',
+    __slots__ = ['init_', 'log_dir_',
+                 'inputs_shape_', 'outputs_shape_',
                  'data_placeholder_', 'labels_placeholder_',
                  'outputs_', 'metrics_', 'loss_',
                  'sess_', 'kwargs_',
                  'summary_', 'summary_writer_', 'projector_config_']
 
-    def __init__(self, log_dir, inputs_shape, outputs_shape, inputs_type=tf.float32, outputs_type=tf.float32, reset_default_graph=True, metric_functions={}, **kwargs):
+    def __init__(self, log_dir):
+        self.log_dir_ = log_dir
+        self.init_ = False
+
+    def load(self, model_checkpoint_path=None):
+        """Load checkpoint."""
+        if model_checkpoint_path is None:
+            model_checkpoint_path = tf.train.latest_checkpoint(self.log_dir_)
+            assert model_checkpoint_path is not None, \
+                'Checkpoint path automatically not found.'
+
+        print('Start loading model...')
+
+        # Get metagraph saver
+        saver = tf.train.import_meta_graph(model_checkpoint_path + '.meta', clear_devices=True)
+        
+        # Create a session for running Ops on the Graph
+        self.sess_ = tf.Session()
+
+        # Restore model from saver
+        saver.restore(self.sess_, model_checkpoint_path)
+
+        # Get named tensors.
+        self.data_placeholder_ = self.sess_.graph.get_tensor_by_name('input_data:0')
+        self.labels_placeholder_ = self.sess_.graph.get_tensor_by_name('input_labels:0')
+        self.outputs_ = self.sess_.graph.get_tensor_by_name('output_layer:0')
+        self.loss_ = self.sess_.graph.get_tensor_by_name('loss:0')
+
+        # Input and Output layer shapes
+        self.inputs_shape_ = self.data_placeholder_.shape.as_list()[1:]
+        self.outputs_shape_ = self.outputs_.shape.as_list()[1:]
+
+        # Instantiate a SummaryWriter to output summaries and the Graph.
+        self.summary_writer_ = tf.summary.FileWriter(self.log_dir_, self.sess_.graph)
+
+        # Projector config object.
+        self.projector_config_ = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
+
+        # Enable initialization flag
+        self.init_ = True
+
+        print('Model loaded from: %s' % model_checkpoint_path)
+
+    def initialize(self, inputs_shape, outputs_shape, inputs_type=tf.float32, outputs_type=tf.float32, reset_default_graph=True, metric_functions={}, **kwargs):
+        """Initialize model."""
         print('Start initializing model...')
 
-        # TensorBoard logging directory.
-        self.log_dir_ = log_dir
+        # Clean TensorBoard logging directory.
         if tf.gfile.Exists(self.log_dir_):
             tf.gfile.DeleteRecursively(self.log_dir_)
         tf.gfile.MakeDirs(self.log_dir_)
@@ -86,6 +135,9 @@ class TFNeuralNetwork(object):
 
         # Run the Op to initialize the variables.
         self.sess_.run(tf.global_variables_initializer())
+
+        # Enable initialization flag
+        self.init_ = True
 
         print('Finish initializing model.')
 
@@ -269,16 +321,6 @@ class TFNeuralNetwork(object):
         saved_filename = saver.save(self.sess_, filename, global_step=global_step)
         print('Model saved to: %s' % saved_filename)
 
-    def load(self, model_checkpoint_path=None):
-        """Load checkpoint."""
-        if model_checkpoint_path is None:
-            model_checkpoint_path = tf.train.latest_checkpoint(self.log_dir_)
-            assert model_checkpoint_path is not None, \
-                'Checkpoint path automatically not found.'
-        saver = tf.train.import_meta_graph(model_checkpoint_path + '.meta', clear_devices=True)
-        saver.restore(self.sess_, model_checkpoint_path)
-        print('Model loaded from: %s' % model_checkpoint_path)
-
     @check_inputs_values
     def forward(self, inputs_values):
         """Forward propagation."""
@@ -296,5 +338,6 @@ class TFNeuralNetwork(object):
     def __str__(self):
         string = 'TFNeuralNetwork object:\n'
         for attr in self.__slots__:
-            string += "%20s: %s\n" % (attr, getattr(self, attr))
+            if hasattr(self, attr):
+                string += "%20s: %s\n" % (attr, getattr(self, attr))
         return string[:-1]
