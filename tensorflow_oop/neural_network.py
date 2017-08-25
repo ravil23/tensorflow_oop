@@ -26,7 +26,8 @@ class TFNeuralNetwork(object):
     # add metrics
     # rename inputs, targets, outputs
     # check training
-    # get summary
+    # add summary
+    # forward one and many auto
 
     """
     Basic neural network model.
