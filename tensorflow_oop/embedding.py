@@ -82,7 +82,8 @@ class TFEmbedding(TFNeuralNetwork):
         diff = tf.squared_difference(tf.expand_dims(first_points, 1), second_points)
         return tf.reduce_sum(diff, axis=2)
 
-    def __init__(self, log_dir, inputs_shape, outputs_shape, inputs_type=tf.float32, outputs_type=tf.float32, reset_default_graph=True, metric_functions={}, **kwargs):
+    def initialize(self, inputs_shape, outputs_shape, inputs_type=tf.float32, outputs_type=tf.float32, reset_default_graph=True, metric_functions={}, **kwargs):
+        """Initialize model."""
         if len(metric_functions) == 0:
             def max_accuracy(outputs, labels_placeholder):
                 """Pairwise binary classification accuracy."""
@@ -116,7 +117,7 @@ class TFEmbedding(TFNeuralNetwork):
             tf.reset_default_graph()
 
         self.labels_placeholder_ = tf.placeholder(tf.int32, shape=[None], name='input_labels')
-        super(TFEmbedding, self).__init__(log_dir, inputs_shape, outputs_shape, inputs_type=inputs_type, outputs_type=outputs_type, reset_default_graph=False, metric_functions=metric_functions, **kwargs)
+        super(TFEmbedding, self).initialize(inputs_shape, outputs_shape, inputs_type=inputs_type, outputs_type=outputs_type, reset_default_graph=False, metric_functions=metric_functions, **kwargs)
 
     def loss_function(self, outputs, labels_placeholder, **kwargs):
         """Compute the triplet loss by mini-batch of triplet embeddings."""

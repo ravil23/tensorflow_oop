@@ -15,14 +15,15 @@ class TFClassifier(TFNeuralNetwork):
 
     __slots__ = TFNeuralNetwork.__slots__ + ['probabilities_']
 
-    def __init__(self, log_dir, inputs_shape, outputs_shape, inputs_type=tf.float32, outputs_type=tf.float32, reset_default_graph=True, metric_functions={}, **kwargs):
+    def initialize(self, inputs_shape, outputs_shape, inputs_type=tf.float32, outputs_type=tf.float32, reset_default_graph=True, metric_functions={}, **kwargs):
+        """Initialize model."""
         if len(metric_functions) == 0:
             def accuracy(outputs, labels_placeholder):
                 correct_prediction = tf.equal(tf.argmax(outputs, 1), tf.argmax(labels_placeholder, 1))
                 return tf.reduce_mean(tf.cast(correct_prediction, tf.float32), name='accuracy')
             metric_functions['accuracy'] = accuracy
 
-        super(TFClassifier, self).__init__(log_dir, inputs_shape, outputs_shape, inputs_type=inputs_type, outputs_type=outputs_type, reset_default_graph=reset_default_graph, metric_functions=metric_functions, **kwargs)
+        super(TFClassifier, self).initialize(inputs_shape, outputs_shape, inputs_type=inputs_type, outputs_type=outputs_type, reset_default_graph=reset_default_graph, metric_functions=metric_functions, **kwargs)
         self.probabilities_ = tf.nn.softmax(self.outputs_)
         
     def loss_function(self, outputs, labels_placeholder, **kwargs):
