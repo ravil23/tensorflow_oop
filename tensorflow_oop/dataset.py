@@ -4,8 +4,8 @@ import pickle
 def check_initialization(function):
     """Decorator for check initialization."""
     def wrapper(self, *args, **kwargs):
-        assert self.init_, \
-            'Object should be initialized: self.init_ = %s' % self.init_
+        assert self.init, \
+            'Object should be initialized: self.init = %s' % self.init
         return function(self, *args, **kwargs)
     return wrapper
 
@@ -31,19 +31,20 @@ class TFDataset(object):
     Dataset structure.
     """
 
-    __slots__ = ['init_', 'size_',
-                 'data_', 'data_shape_', 'data_ndim_',
-                 'labels_', 'labels_shape_', 'labels_ndim_',
-                 'batch_size_', 'batch_num_',
-                 'normalized_', 'normalization_mask_', 'normalization_mean_', 'normalization_std_']
+    __slots__ = ['init', 'size',
+                 'data', 'data_shape', 'data_ndim',
+                 'labels', 'labels_shape', 'labels_ndim',
+                 'batch_size', 'batch_num',
+                 'normalized', 'normalization_mask',
+                 'normalization_mean', 'normalization_std']
 
     def __init__(self, data=None, labels=None):
         for attr in self.__slots__:
             setattr(self, attr, None)
-        self.init_ = False
-        self.size_ = 0
-        self.batch_size_ = 1
-        self.batch_num_ = 0
+        self.init = False
+        self.size = 0
+        self.batch_size = 1
+        self.batch_num = 0
         if data is not None or labels is not None:
             self.initialize(data=data, labels=labels)
 
@@ -55,84 +56,101 @@ class TFDataset(object):
     def initialize(self, data, labels):
         """Set data and labels."""
         assert data is not None or labels is not None, \
-            'Data or labels should be passed: data = %s, labels = %s' % (data, labels)
+            '''Data or labels should be passed:
+            data = %s, labels = %s''' % (data, labels)
+
         if data is not None and labels is not None:
             assert len(data) == len(labels), \
-                'Data and labels should be the same length: len(data) = %s, len(labels) = %s' % (len(data), len(labels))
+                '''Data and labels should be the same length:
+                len(data) = %s, len(labels) = %s''' % (len(data), len(labels))
+
+        # Processing data
         if data is not None:
-            self.size_ = len(data)
+            self.size = len(data)
             data = np.asarray(data)
             if data.ndim == 1:
-                self.data_ = np.reshape(data, (self.size_, 1))
+                self.data = np.reshape(data, (self.size, 1))
             else:
-                self.data_ = data
-            self.data_shape_ = list(self.data_.shape[1:])
-            self.data_ndim_ = len(self.data_shape_)
+                self.data = data
+            self.data_shape = list(self.data.shape[1:])
+            self.data_ndim = len(self.data_shape)
         else:
-            self.data_ = None
-            self.data_shape_ = None
-            self.data_ndim_ = None
-            self.normalized_ = None
-            self.normalization_mask_ = None
-            self.normalization_mean_ = None
-            self.normalization_std_ = None
+            self.data = None
+            self.data_shape = None
+            self.data_ndim = None
+            self.normalized = None
+            self.normalization_mask = None
+            self.normalization_mean = None
+            self.normalization_std = None
+
+        # Processing labels
         if labels is not None:
-            self.size_ = len(labels)
+            self.size = len(labels)
             labels = np.asarray(labels)
             if labels.ndim == 1:
-                self.labels_ = np.reshape(labels, (self.size_, 1))
+                self.labels = np.reshape(labels, (self.size, 1))
             else:
-                self.labels_ = labels
-            self.labels_shape_ = list(self.labels_.shape[1:])
-            self.labels_ndim_ = len(self.labels_shape_)
+                self.labels = labels
+            self.labels_shape = list(self.labels.shape[1:])
+            self.labels_ndim = len(self.labels_shape)
         else:
-            self.labels_ = None
-            self.labels_shape_ = None
-            self.labels_ndim_ = None
-        self.init_ = True
+            self.labels = None
+            self.labels_shape = None
+            self.labels_ndim = None
+
+        self.init = True
 
     @check_initialization
     def shuffle(self):
         """Random shuffling of dataset."""
-        indexes = np.arange(self.size_)
+        indexes = np.arange(self.size)
         np.random.shuffle(indexes)
-        self.data_ = self.data_[indexes]
-        self.labels_ = self.labels_[indexes]
+        self.data = self.data[indexes]
+        self.labels = self.labels[indexes]
 
     @check_initialization
     def set_batch_size(self, batch_size):
         """Set batch size."""
         assert batch_size > 0, \
-            'Batch size should be greater then zero: batch_size = %s' % batch_size
-        assert batch_size <=  self.size_, \
-            'Batch size should not be greater then dataset size: batch_size = %s, self.size_ = %s' % (batch_size, self.size_)
-        self.batch_size_ = int(batch_size)
+            '''Batch size should be greater then zero:
+            batch_size = %s''' % batch_size
+
+        assert batch_size <=  self.size, \
+            '''Batch size should not be greater then dataset size:
+            batch_size = %s, self.size = %s''' % (batch_size, self.size)
+        self.batch_size = int(batch_size)
 
     @check_initialization
     def next_batch(self):
         """Get next batch."""
-        first = (self.batch_num_ * self.batch_size_) % self.size_
-        last = first + self.batch_size_
+        first = (self.batch_num * self.batch_size) % self.size
+        last = first + self.batch_size
         batch_data = None
         batch_labels = None
-        if (last <= self.size_):
-            if self.data_ is not None:
-                batch_data = self.data_[first:last]
-            if self.labels_ is not None:
-                batch_labels = self.labels_[first:last]
+        if (last <= self.size):
+            if self.data is not None:
+                batch_data = self.data[first:last]
+            if self.labels is not None:
+                batch_labels = self.labels[first:last]
         else:
-            if self.data_ is not None:
-                batch_data = np.append(self.data_[first:], self.data_[:last - self.size_], axis=0)
-            if self.labels_ is not None:
-                batch_labels = np.append(self.labels_[first:], self.labels_[:last - self.size_], axis=0)
-        self.batch_num_ += 1
-        return TFBatch(data_=batch_data, labels_=batch_labels)
+            if self.data is not None:
+                batch_data = np.append(self.data[first:],
+                                       self.data[:last - self.size],
+                                       axis=0)
+            if self.labels is not None:
+                batch_labels = np.append(self.labels[first:],
+                                         self.labels[:last - self.size],
+                                         axis=0)
+        self.batch_num += 1
+        return TFBatch(data=batch_data, labels=batch_labels)
 
     @check_initialization
     def iterbatches(self, count=None):
         """Get iterator by batches."""
         if count is None:
-            count = self.size_ // self.batch_size_ + (1 if self.size_ % self.batch_size_ != 0 else 0)
+            count = self.size // self.batch_size
+            if self.size % self.batch_size != 0:
+                count += 1
         for i in range(count):
             yield self.next_batch()
 
@@ -140,58 +158,95 @@ class TFDataset(object):
     def split(self, train_size, val_size, test_size, shuffle):
         """Split dataset to train, validation and test set."""
         assert train_size >= 0, \
-            'Training size should not be less then zero: train_size = %s' % train_size
+            '''Training size should not be less then zero:
+            train_size = %s''' % train_size
+
         assert val_size >= 0, \
-            'Validation size should not be less then zero: val_size = %s' % val_size
+            '''Validation size should not be less then zero:
+            val_size = %s''' % val_size
+
         assert test_size >= 0, \
-            'Testing size should not be less then zero: test_size = %s' % test_size
+            '''Testing size should not be less then zero:
+            test_size = %s''' % test_size
+
         total_size = train_size + val_size + test_size
-        assert total_size == self.size_ or total_size == 1, \
-            'Total size should be equal to TFDataset size or one: total_size = %s, self.size_ = %s' % (total_size, self.size_)
+        assert total_size == self.size or total_size == 1, \
+            '''Total size should be equal to TFDataset size or one:
+            total_size = %s, self.size = %s''' % (total_size, self.size)
+
+        # Check if arguments send as rate
         if total_size == 1:
             if train_size != 0:
-                train_size = int(round(float(train_size) * self.size_))
+                train_size = int(round(float(train_size) * self.size))
             else:
                 train_size = 0
             if test_size != 0:
                 if val_size != 0:
-                    test_size = int(round(float(test_size) * self.size_))
+                    test_size = int(round(float(test_size) * self.size))
                 else:
-                    test_size = self.size_ - train_size
+                    test_size = self.size - train_size
             else:
                 test_size = 0
             if val_size != 0:
-                val_size = self.size_ - train_size - test_size
+                val_size = self.size - train_size - test_size
             else:
                 val_size = 0
 
-        indexes = np.arange(self.size_)
+        # Get indexes for don't dropping current data
+        indexes = np.arange(self.size)
+
+        # Shuffling if necessary
         if shuffle:
             np.random.shuffle(indexes)
+
+        # Generate training set
         if train_size > 0:
             train_set = TFDataset()
             train_set.copy(self)
-            data = self.data_[indexes[:train_size]] if self.data_ is not None else None
-            labels = self.labels_[indexes[:train_size]] if self.labels_ is not None else None
+            if self.data is not None:
+                data = self.data[indexes[:train_size]]
+            else:
+                data = None
+            if self.labels is not None:
+                labels = self.labels[indexes[:train_size]]
+            else:
+                labels = None
             train_set.initialize(data, labels)
         else:
             train_set = None
+
+        # Generate validation set
         if val_size > 0:
             val_set = TFDataset()
             val_set.copy(self)
-            data = self.data_[indexes[train_size:train_size + val_size]] if self.data_ is not None else None
-            labels = self.labels_[indexes[train_size:train_size + val_size]] if self.labels_ is not None else None
+            if self.data is not None:
+                data = self.data[indexes[train_size:train_size + val_size]]
+            else:
+                data = None
+            if self.labels is not None:
+                labels = self.labels[indexes[train_size:train_size + val_size]]
+            else:
+                labels = None
             val_set.initialize(data, labels)
         else:
             val_set = None
+
+        # Generate testing set
         if test_size > 0:
             test_set = TFDataset()
             test_set.copy(self)
-            data = self.data_[indexes[-test_size:]] if self.data_ is not None else None
-            labels = self.labels_[indexes[-test_size:]] if self.labels_ is not None else None
+            if self.data is not None:
+                data = self.data[indexes[-test_size:]]
+            else:
+                data = None
+            if self.labels is not None:
+                labels = self.labels[indexes[-test_size:]]
+            else:
+                labels = None
             test_set.initialize(data, labels)
         else:
             test_set = None
+
         return train_set, val_set, test_set
 
     @staticmethod
@@ -200,7 +255,8 @@ class TFDataset(object):
         with open(filename, 'rb') as f:
             obj = pickle.load(f)
         assert isinstance(obj, TFDataset), \
-            'Loaded object should be TFDataset object: type(obj) = %s' % type(obj)
+            '''Loaded object should be TFDataset object:
+            type(obj) = %s''' % type(obj)
         return obj
 
     @check_initialization
@@ -210,43 +266,62 @@ class TFDataset(object):
             pickle.dump(self, f)
 
     @check_initialization
-    def generate_sequences(self, sequence_length, sequence_step, label_length=None, label_offset=None):
+    def generate_sequences(self,
+                           sequence_length,
+                           sequence_step,
+                           label_length=None,
+                           label_offset=None):
         """Generate sequences."""
-        assert self.data_ is not None, \
-            'Data field should be initialized: self.data_ = %s' % self.data_
+        assert self.data is not None, \
+            '''Data field should be initialized: self.data = %s''' % self.data
+
         assert sequence_length > 0, \
-            'Sequence length should be greater than zero: sequence_length = %s' % sequence_length
+            '''Sequence length should be greater than zero:
+            sequence_length = %s''' % sequence_length
+
         assert sequence_step > 0, \
-            'Sequence step should be greater than zero: sequence_step = %s' % sequence_step
+            '''Sequence step should be greater than zero:
+            sequence_step = %s''' % sequence_step
+
         if label_length is not None:
             assert label_length > 0 and label_offset is not None, \
-                'Label length should be greater than zero and label offset passed: label_length = %s, label_offset = %s' % (label_length, label_offset)
+                '''Label length should be greater than zero and
+                label offset passed: label_length = %s,
+                label_offset = %s''' % (label_length, label_offset)
+
         if label_length is not None:
             sequences = []
             labels = []
-            last = self.size_ - sequence_length - label_length - label_offset + 1
+            last = self.size - sequence_length - label_length - label_offset + 1
             for i in range(0, last, sequence_step):
                 last_sequence_index = i + sequence_length
-                current_sequence = self.data_[i : last_sequence_index]
+                current_sequence = self.data[i : last_sequence_index]
                 sequences.append(current_sequence)
-                first_label_index = last_sequence_index + label_offset
-                current_label = self.data_[first_label_index : first_label_index + label_length]
+                first_ind = last_sequence_index + label_offset
+                current_label = self.data[first_ind : first_ind + label_length]
                 labels.append(current_label)
+
+            # Create dataset
             dataset = TFDataset(sequences, labels)
             dataset.copy(self)
             dataset.initialize(data=sequences, labels=labels)
         else:
             sequences = []
-            last = self.size_ - sequence_length + 1
+            last = self.size - sequence_length + 1
             for i in range(0, last, sequence_step):
                 last_sequence_index = i + sequence_length
-                current_sequence = self.data_[i : last_sequence_index]
+                current_sequence = self.data[i : last_sequence_index]
                 sequences.append(current_sequence)
+            
+            # Create dataset
             dataset = TFDataset(sequences)
             dataset.copy(self)
             dataset.initialize(data=sequences, labels=None)
-        if self.normalization_mask_ is not None:
-            dataset.normalization_mask_ = [False] + self.normalization_mask_
+
+        # Update normalization mask
+        if self.normalization_mask is not None:
+            dataset.normalization_mask = [False] + self.normalization_mask
+
         return dataset
 
     @check_initialization
@@ -256,107 +331,128 @@ class TFDataset(object):
         Where mask is boolean indicators corresponding to data dimensions.
         If mask value is True, then feature with this dimension should be normalized.
         """
-        assert self.data_ is not None, \
-            'Data field should be initialized: self.data_ = %s' % self.data_
-        if self.normalized_:
+        assert self.data is not None, \
+            '''Data field should be initialized: self.data = %s''' % self.data
+
+        if self.normalized:
             return
+
         if mask is not None:
-            assert len(mask) == self.data_ndim_, \
-                'Mask length should be equal to data dimensions count: len(mask) = %s, self.data_ndim_ = %s' % (len(mask), self.data_ndim_)
+            assert len(mask) == self.data_ndim, \
+                '''Mask length should be equal to data dimensions count:
+                len(mask) = %s, self.data_ndim = %s''' \
+                % (len(mask), self.data_ndim)
 
             for i in range(0, len(mask) - 1):
                 assert mask[i + 1] or not mask[i], \
-                    'False elements should be before True elements: mask = %s' % mask
+                    '''False elements should be before True elements:
+                    mask = %s''' % mask
 
             assert mask[-1] == True, \
-                'Last mask element should be True: mask = %s' % mask
+                '''Last mask element should be True:
+                mask = %s''' % mask
 
             # Reshape to array of features
-            data_shape_arr = np.asarray(self.data_shape_)
-            new_shape = [-1] + list(data_shape_arr[mask])
-            reshaped_data = np.reshape(self.data_, new_shape)
+            data_shapearr = np.asarray(self.data_shape)
+            new_shape = [-1] + list(data_shapearr[mask])
+            reshaped_data = np.reshape(self.data, new_shape)
 
             # Save normalisation properties
-            self.normalization_mask_ = list(mask)
-            self.normalization_mean_ = np.mean(reshaped_data, axis=0)
-            self.normalization_std_ = np.std(reshaped_data, axis=0)
+            self.normalization_mask = list(mask)
+            self.normalization_mean = np.mean(reshaped_data, axis=0)
+            self.normalization_std = np.std(reshaped_data, axis=0)
 
             # Reshape normalization properties for correct broadcasting
-            valid_shape = data_shape_arr
-            valid_shape[np.logical_not(self.normalization_mask_)] = 1
-            reshaped_normalization_mean_ = np.reshape(self.normalization_mean_, valid_shape)
-            reshaped_normalization_std_ = np.reshape(self.normalization_std_, valid_shape)
+            valid_shape = data_shapearr
+            valid_shape[np.logical_not(self.normalization_mask)] = 1
+            reshaped_mean = np.reshape(self.normalization_mean, valid_shape)
+            reshaped_std = np.reshape(self.normalization_std, valid_shape)
 
             # Replace zero std with one
-            valid_normalization_std_ = reshaped_normalization_std_
-            valid_normalization_std_[reshaped_normalization_std_ == 0] = 1
+            valid_std = reshaped_std
+            valid_std[reshaped_std == 0] = 1
 
             # Update dataset with normalized value
-            self.data_ = (self.data_ - reshaped_normalization_mean_) / valid_normalization_std_
+            self.data = (self.data - reshaped_mean) / valid_std
         else:
             # Save normalisation properties
-            self.normalization_mask_ = None
-            self.normalization_mean_ = np.mean(self.data_)
-            self.normalization_std_ = np.std(self.data_)
+            self.normalization_mask = None
+            self.normalization_mean = np.mean(self.data)
+            self.normalization_std = np.std(self.data)
 
             # Update dataset with normalized value
-            self.data_ = (self.data_ - self.normalization_mean_) / self.normalization_std_
-        self.normalized_ = True
+            self.data = (self.data - self.normalization_mean) / self.normalization_std
+
+        self.normalized = True
 
     @check_initialization
     def unnormalize(self):
         """Unnormalize dataset to original from zero mean and one std."""
-        assert self.data_ is not None, \
-            'Data field should be initialized: self.data_ = %s' % self.data_
-        if not self.normalized_:
+        assert self.data is not None, \
+            'Data field should be initialized: self.data = %s' % self.data
+
+        if not self.normalized:
             return
-        if self.normalization_mask_ is not None:
-            data_shape_arr = np.asarray(self.data_shape_)
+
+        if self.normalization_mask is not None:
+            data_shapearr = np.asarray(self.data_shape)
 
             # Reshape for correct broadcasting
-            valid_shape = data_shape_arr
-            valid_shape[np.logical_not(self.normalization_mask_)] = 1
-            reshaped_normalization_mean_ = np.reshape(self.normalization_mean_, valid_shape)
-            reshaped_normalization_std_ = np.reshape(self.normalization_std_, valid_shape)
+            valid_shape = data_shapearr
+            valid_shape[np.logical_not(self.normalization_mask)] = 1
+            reshaped_mean = np.reshape(self.normalization_mean, valid_shape)
+            reshaped_std = np.reshape(self.normalization_std, valid_shape)
 
             # Replace zero std with one 
-            valid_normalization_std_ = reshaped_normalization_std_
-            valid_normalization_std_[reshaped_normalization_std_ == 0] = 1
+            valid_std = reshaped_std
+            valid_std[reshaped_std == 0] = 1
 
             # Update dataset with unnormalized value
-            self.data_ = self.data_ * valid_normalization_std_ +  reshaped_normalization_mean_
+            self.data = self.data*valid_std +  reshaped_mean
         else:
             # Update dataset with unnormalized value
-            self.data_ =  self.data_ * self.normalization_std_ +  self.normalization_mean_
-        self.normalized_ = False
+            self.data =  self.data*self.normalization_std + self.normalization_mean
+
+        self.normalized = False
 
     @check_initialization
     def one_hot(self, encoding_size, dtype=np.float):
         """One hot encoding."""
-        assert self.labels_ is not None, \
-            'Labels should be initialized: self.labels_ = %s' % self.labels_
-        assert np.issubdtype(self.labels_.dtype, np.integer), \
-            'Labels type should be integer: self.labels_.dtype = %s' % self.labels_.dtype
-        assert np.min(self.labels_) >= 0, \
-            'Minimal label should not be less than zero: np.min(self.labels_) = %s' % np.min(self.labels_)
-        assert encoding_size > np.max(self.labels_), \
-            'Encoding size should be greater than maximal label: encoding_size = %s, np.max(self.labels_) = %s' % (encoding_size, np.max(self.labels_))
-        flattened_labels = self.labels_.flatten()
-        assert len(flattened_labels) == self.size_, \
-            'Flattened labels length should be equal to size of elements: len(flattened_labels) = %s, self.size_ = %s' % (len(flattened_labels), self.size_)
+        assert self.labels is not None, \
+            '''Labels should be initialized: self.labels = %s''' % self.labels
+
+        assert np.issubdtype(self.labels.dtype, np.integer), \
+            '''Labels type should be integer:
+            self.labels.dtype = %s''' % self.labels.dtype
+
+        assert np.min(self.labels) >= 0, \
+            '''Minimal label should not be less than zero:
+            np.min(self.labels) = %s''' % np.min(self.labels)
+
+        assert encoding_size > np.max(self.labels), \
+            '''Encoding size should be greater than maximal label:
+            encoding_size = %s, np.max(self.labels) = %s''' \
+            % (encoding_size, np.max(self.labels))
+
+        flattened_labels = self.labels.flatten()
+        assert len(flattened_labels) == self.size, \
+            '''Flattened labels length should be equal to size of elements:
+            len(flattened_labels) = %s, self.size = %s''' \
+            % (len(flattened_labels), self.size)
+
         one_hot_labels = np.eye(encoding_size, dtype=dtype)[flattened_labels]
-        self.initialize(data=self.data_, labels=one_hot_labels)
+        self.initialize(data=self.data, labels=one_hot_labels)
 
     def __len__(self):
-        return self.size_
+        return self.size
 
     def __str__(self):
         string = 'TFDataset object:\n'
         for attr in self.__slots__:
-            if attr != 'data_' and attr != 'labels_':
+            if attr != 'data' and attr != 'labels':
                 string += "%20s: %s\n" % (attr, getattr(self, attr))
-        if 'data_' in self.__slots__:
-            string += "%s: \n%s\n" % ('data_', getattr(self, 'data_'))
-        if 'labels_' in self.__slots__:
-            string += "%s: \n%s\n" % ('labels_', getattr(self, 'labels_'))
+        if 'data' in self.__slots__:
+            string += "%s: \n%s\n" % ('data', getattr(self, 'data'))
+        if 'labels' in self.__slots__:
+            string += "%s: \n%s\n" % ('labels', getattr(self, 'labels'))
         return string[:-1]
