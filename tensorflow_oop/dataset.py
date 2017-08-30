@@ -151,13 +151,20 @@ class TFDataset(object):
         if total_size == 1:
             if train_size != 0:
                 train_size = int(round(float(train_size) * self.size_))
+            else:
+                train_size = 0
             if test_size != 0:
                 if val_size != 0:
                     test_size = int(round(float(test_size) * self.size_))
                 else:
                     test_size = self.size_ - train_size
+            else:
+                test_size = 0
             if val_size != 0:
                 val_size = self.size_ - train_size - test_size
+            else:
+                val_size = 0
+
         indexes = np.arange(self.size_)
         if shuffle:
             np.random.shuffle(indexes)
