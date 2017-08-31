@@ -264,6 +264,8 @@ class TFEmbedding(TFNeuralNetwork):
                 len(inputs_values) = %s, len(labels) = %s''' \
                 % (len(inputs_values), len(labels))
 
+        print('Visualizing...')
+
         # Get visualization embeddings
         vis_embeddings = self.forward(inputs_values)
         if labels is not None:

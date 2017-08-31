@@ -447,6 +447,9 @@ class TFDataset(object):
         one_hot_labels = np.eye(encoding_size, dtype=dtype)[flattened_labels]
         self.initialize(data=self.data, labels=one_hot_labels)
 
+    def str_shape(self):
+        return '%s : %s -> %s' % (self.size, self.data_shape, self.labels_shape)
+
     def __len__(self):
         return self.size
 

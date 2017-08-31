@@ -41,23 +41,23 @@ def run(args):
     val_set.set_batch_size(args.batch_size, args.batch_positives_count)
     test_set = TFTripletset(mnist.test.images, mnist.test.labels)
     test_set.set_batch_size(args.batch_size, args.batch_positives_count)
-    print('Traininig  set shape:', train_set.size_, train_set.data_shape_, '->', train_set.labels_shape_)
-    print('Validation set shape:', val_set.size_, val_set.data_shape_, '->', val_set.labels_shape_)
-    print('Testing    set shape:', test_set.size_, test_set.data_shape_, '->', test_set.labels_shape_, '\n')
+    print('Traininig  set shape: %s' % train_set.str_shape())
+    print('Validation set shape: %s' % val_set.str_shape())
+    print('Testing    set shape: %s\n' % test_set.str_shape())
 
-    print('Initializing...')
+    # Initialization
     model = MnistEmbedding(log_dir=args.log_dir,
-                           inputs_shape=train_set.data_shape_,
+                           inputs_shape=train_set.data_shape,
                            outputs_shape=[args.embedding_size],
                            hidden_size=args.hidden_size,
                            margin=args.margin,
                            exclude_hard=args.exclude_hard)
-    print(model, '\n')
+    print('%s\n' % model)
 
     # Fitting model
     model.fit(train_set, iteration_count=None, epoch_count=args.epoch_count, val_set=val_set)
 
-    print('Visualizing...')
+    # Visualization
     model.visualize(inputs_values=train_set.data_[:args.vis_count],
                     var_name='train_set',
                     labels=train_set.labels_[:args.vis_count])
@@ -69,8 +69,9 @@ def run(args):
                     labels=test_set.labels_[:args.vis_count])
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='MNIST embedding with Triplet Loss.',
-                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description='MNIST embedding with Triplet Loss.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('--input', '-i', default='mnist_data', type=str,
         help='path to directory with input data archives')

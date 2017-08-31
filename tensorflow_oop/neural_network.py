@@ -440,9 +440,10 @@ class TFNeuralNetwork(object):
             type(data) = %s''' % type(data)
 
         if isinstance(data, TFDataset):
-            assert data.init_, \
+            assert data.init, \
                 '''Dataset should be initialized:
-                data.init_ = %s''' % data.init_
+                data.init_ = %s''' % data.init
+            print('Evaluating on dataset...')
 
         if isinstance(data, TFBatch):
             assert hasattr(data, 'data_') and hasattr(data, 'labels_'), \
@@ -453,8 +454,8 @@ class TFNeuralNetwork(object):
             metric_keys = list(self.metrics.keys())
             metric_values = list(self.metrics.values())
             estimates = self.sess.run(metric_values, feed_dict={
-                self.inputs: dataset.data_,
-                self.targets: dataset.labels_,
+                self.inputs: dataset.data,
+                self.targets: dataset.labels,
             })
             for i in range(len(self.metrics)):
                 result[metric_keys[i]] = estimates[i]

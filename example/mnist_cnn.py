@@ -37,13 +37,20 @@ class MnistCNN(TFClassifier):
         W = tf.get_variable('W', weight_shape, initializer=weight_init)
         bias_init = tf.constant_initializer(value=0)
         b = tf.get_variable('b', bias_shape, initializer=bias_init)
-        return tf.nn.relu(tf.nn.bias_add(tf.nn.conv2d(inputs, W, strides=[1, 1, 1, 1], padding='SAME'), b))
+        return tf.nn.relu(tf.nn.bias_add(tf.nn.conv2d(inputs, W,
+                                                      strides=[1, 1, 1, 1],
+                                                      padding='SAME'),
+                                         b))
 
     def max_pool(self, inputs, k=2):
-        return tf.nn.max_pool(inputs, ksize=[1, k, k, 1], strides=[1, k, k, 1], padding='SAME')
+        return tf.nn.max_pool(inputs,
+                              ksize=[1, k, k, 1],
+                              strides=[1, k, k, 1],
+                              padding='SAME')
 
     def fc(self, inputs, weight_shape, bias_shape):
-        weight_init = tf.random_normal_initializer(stddev=(2.0/weight_shape[0])**0.5)
+        incoming = weight_shape[0]
+        weight_init = tf.random_normal_initializer(stddev=(2.0/incoming)**0.5)
         bias_init = tf.constant_initializer(value=0)
         W = tf.get_variable('W', weight_shape, initializer=weight_init)
         b = tf.get_variable('b', bias_shape, initializer=bias_init)
@@ -58,21 +65,22 @@ def run(args):
     val_set.set_batch_size(args.batch_size)
     test_set = TFDataset(mnist.test.images, mnist.test.labels)
     test_set.set_batch_size(args.batch_size)
-    print('Traininig  set shape:', train_set.size_, train_set.data_shape_, '->', train_set.labels_shape_)
-    print('Validation set shape:', val_set.size_, val_set.data_shape_, '->', val_set.labels_shape_)
-    print('Testing    set shape:', test_set.size_, test_set.data_shape_, '->', test_set.labels_shape_, '\n')
+    print('Traininig  set shape: %s' % train_set.str_shape())
+    print('Validation set shape: %s' % val_set.str_shape())
+    print('Testing    set shape: %s\n' % test_set.str_shape())
 
-    print('Initializing...')
-    model = MnistCNN(log_dir=args.log_dir,
-                     inputs_shape=train_set.data_shape_,
-                     outputs_shape=train_set.labels_shape_,
+    # Initialization
+    model = MnistCNN(log_dir=args.log_dir)
+    model.initialize(inputs_shape=train_set.data_shape,
+                     targets_shape=train_set.labels_shape,
+                     outputs_shape=train_set.labels_shape,
                      hidden_size=args.hidden_size)
-    print(model, '\n')
+    print('%s\n' % model)
 
     # Fitting model
-    model.fit(train_set, iteration_count=None, epoch_count=args.epoch_count, val_set=val_set)
-    
-    print('Evaluating...')
+    model.fit(train_set, epoch_count=args.epoch_count, val_set=val_set)
+
+    # Evaluation
     if train_set is not None:
         train_eval = model.evaluate(train_set)
         print('Results on training set:', train_eval)
@@ -95,8 +103,9 @@ def run(args):
             show(test_set.data_[i])
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='MNIST classification with Convolutional neural network (CNN).',
-                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description='MNIST classification with Convolutional network (CNN).',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('--input', '-i', default='mnist_data', type=str,
         help='path to directory with input data archives')
