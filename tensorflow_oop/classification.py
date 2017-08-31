@@ -1,3 +1,7 @@
+"""
+Classification base models.
+"""
+
 import sys
 import os
 
@@ -18,10 +22,10 @@ class TFClassifier(TFNeuralNetwork):
     def initialize(self,
                    inputs_shape,
                    targets_shape,
-                   outputsshape,
+                   outputs_shape,
                    inputs_type=tf.float32,
                    targets_type=tf.float32,
-                   outputstype=tf.float32,
+                   outputs_type=tf.float32,
                    reset=True,
                    **kwargs):
         """Initialize model.
@@ -29,18 +33,20 @@ class TFClassifier(TFNeuralNetwork):
         Arguments:
             inputs_shape -- shape of inputs layer
             targets_shape -- shape of targets layer
-            outputsshape -- shape of outputs layer
+            outputs_shape -- shape of outputs layer
             inputs_type -- type of inputs layer
             targets_type -- type of targets layer
-            outputstype -- type of outputs layer
+            outputs_type -- type of outputs layer
             reset -- indicator of clearing default graph and logging directory
             kwargs -- dictionary of keyword arguments
 
         """
-        super(TFClassifier, self).initialize(inputs_shape,
-                                             outputsshape,
+        super(TFClassifier, self).initialize(inputs_shape=inputs_shape,
+                                             targets_shape=targets_shape,
+                                             outputs_shape=outputs_shape,
                                              inputs_type=inputs_type,
-                                             outputstype=outputstype,
+                                             targets_type=targets_type,
+                                             outputs_type=outputs_type,
                                              reset=reset,
                                              **kwargs)
 

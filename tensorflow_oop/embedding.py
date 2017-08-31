@@ -1,3 +1,7 @@
+"""
+Embedding base models.
+"""
+
 import warnings
 import sys
 import os
@@ -14,61 +18,84 @@ class TFTripletset(TFDataset):
     Triplet generation dataset.
     """
 
-    __slots__ = TFDataset.__slots__ + ['batch_positives_count_', 'batch_negatives_count_']
+    __slots__ = TFDataset.__slots__ + ['batch_positives_count',
+                                       'batch_negatives_count']
 
     def initialize(self, data, labels):
         """Set data and labels."""
         assert data is not None and labels is not None, \
-            'Data and labels should be passed: data = %s, labels = %s' % (data, labels)
+            '''Data and labels should be passed:
+            data = %s, labels = %s''' % (data, labels)
+
         ndim = np.asarray(labels).ndim
         assert ndim == 1, \
-            'Labels should be 1D dimension: labels.ndim = %s' % ndim
-        super(TFTripletset, self).initialize(data, labels)
-    
+            '''Labels should be 1D dimension: labels.ndim = %s''' % ndim
+
+        super(TFTripletset, self).initialize(data=data, labels=labels)
+
     def split(self, train_size, val_size, test_size, shuffle):
         """Split dataset to train, validation and test set."""
-        train_set, val_set, test_set = super(TFTripletset, self).split(train_size, val_size, test_size, shuffle)
+        train_set, val_set, test_set = super(TFTripletset, self).split(
+            train_size,
+            val_size,
+            test_size,
+            shuffle)
         if train_set is not None:
-            train_set = TFTripletset(data=train_set.data_, labels=train_set.labels_.flatten())
-            train_set.set_batch_size(self.batch_size_, self.batch_positives_count_)
+            train_set = TFTripletset(data=train_set.data,
+                                     labels=train_set.labels.flatten())
+            train_set.set_batch_size(self.batch_size, self.batch_positives_count)
         if val_set is not None:
-            val_set = TFTripletset(data=val_set.data_, labels=val_set.labels_.flatten())
-            val_set.set_batch_size(self.batch_size_, self.batch_positives_count_)
+            val_set = TFTripletset(data=val_set.data,
+                                   labels=val_set.labels.flatten())
+            val_set.set_batch_size(self.batch_size, self.batch_positives_count)
         if test_set is not None:
-            test_set = TFTripletset(data=test_set.data_, labels=test_set.labels_.flatten())
-            test_set.set_batch_size(self.batch_size_, self.batch_positives_count_)
+            test_set = TFTripletset(data=test_set.data,
+                                    labels=test_set.labels.flatten())
+            test_set.set_batch_size(self.batch_size, self.batch_positives_count)
         return train_set, val_set, test_set
 
     @check_initialization
     def set_batch_size(self, batch_size, batch_positives_count):
         """Set batch size and positives count per batch."""
         assert batch_positives_count > 0, \
-            'Positives count in batch should be greater than zero: batch_positives_count = %s' % batch_positives_count
+            '''Positives count in batch should be greater than zero:
+            batch_positives_count = %s''' % batch_positives_count
+
         assert batch_positives_count < batch_size, \
-            'Positives count in batch should be less than batch size: batch_positives_count = %s, batch_size = %s' % (batch_positives_count, batch_size)
+            '''Positives count in batch should be less than batch size:
+            batch_positives_count = %s, batch_size = %s''' \
+            % (batch_positives_count, batch_size)
+
         super(TFTripletset, self).set_batch_size(batch_size)
-        self.batch_positives_count_ = int(batch_positives_count)
-        self.batch_negatives_count_ = self.batch_size_ - self.batch_positives_count_
+        self.batch_positives_count = int(batch_positives_count)
+        self.batch_negatives_count = self.batch_size - self.batch_positives_count
 
     @check_initialization
     def next_batch(self):
         """Get next batch."""
-        labels = self.labels_.flatten()
+        labels = self.labels.flatten()
         labels_counts = np.bincount(labels)
-        positive_keys = np.where(labels_counts >= self.batch_positives_count_)[0]
-        positive_key = positive_keys[np.random.randint(0, len(positive_keys))]
+        positive_keys = np.where(labels_counts >= self.batch_positives_count)[0]
+        rand_pos_key = positive_keys[np.random.randint(0, len(positive_keys))]
+
+        def random_sample(data, count):
+            indexes = np.arange(data.shape[0])
+            rand_indexes = np.random.choice(indexes, count, replace=False)
+            return data[rand_indexes]
 
         # Take positive samples
-        positives = self.data_[labels == positive_key]
-        positives = positives[np.random.choice(np.arange(labels_counts[positive_key]), self.batch_positives_count_, replace=False), :]
+        positives = random_sample(self.data[labels == rand_pos_key],
+                                  self.batch_positives_count)
 
         # Take negative samples
-        negatives = self.data_[labels != positive_key]
-        negatives = negatives[np.random.choice(np.arange(negatives.shape[0]), self.batch_negatives_count_, replace=False), :]
+        negatives = random_sample(self.data[labels != rand_pos_key],
+                                  self.batch_negatives_count)
 
+        # Create batch
         batch_data = np.vstack([positives, negatives])
-        batch_labels = np.append(np.zeros(len(positives)), np.ones(len(negatives)))
-        return TFBatch(data_=batch_data, labels_=batch_labels)
+        batch_labels = np.append(np.zeros(len(positives)),
+                                 np.ones(len(negatives)))
+        return TFBatch(data=batch_data, labels=batch_labels)
 
 class TFEmbedding(TFNeuralNetwork):
 
@@ -79,52 +106,57 @@ class TFEmbedding(TFNeuralNetwork):
     @staticmethod
     def squared_distance(first_points, second_points):
         """Pairwise squared distances between 2 sets of points."""
-        diff = tf.squared_difference(tf.expand_dims(first_points, 1), second_points)
+        diff = tf.squared_difference(tf.expand_dims(first_points, 1),
+                                     second_points)
         return tf.reduce_sum(diff, axis=2)
 
-    def initialize(self, inputs_shape, outputs_shape, inputs_type=tf.float32, outputs_type=tf.float32, reset_default_graph=True, metric_functions={}, **kwargs):
-        """Initialize model."""
-        if len(metric_functions) == 0:
-            def max_accuracy(outputs, labels_placeholder):
-                """Pairwise binary classification accuracy."""
-                # Calculate distances
-                embedding_pos, embedding_neg = tf.dynamic_partition(outputs, partitions=tf.reshape(labels_placeholder, [-1]), num_partitions=2)
-                pos_dist = TFEmbedding.squared_distance(embedding_pos, embedding_pos)
-                neg_dist = TFEmbedding.squared_distance(embedding_pos, embedding_neg)
-                tf.summary.histogram('pos_dist', pos_dist)
-                tf.summary.histogram('neg_dist', neg_dist)
+    def initialize(self,
+                   inputs_shape,
+                   outputs_shape,
+                   inputs_type=tf.float32,
+                   outputs_type=tf.float32,
+                   reset=True,
+                   **kwargs):
+        """Initialize model.
 
-                def triplet_accuracy(pos_dist, neg_dist):
-                    """Triplet accuracy function for binary classification to positives and negatives."""
-                    def accuracy(threshold):
-                        correct_count = tf.count_nonzero(pos_dist < threshold) + tf.count_nonzero(neg_dist >= threshold)
-                        total_count = tf.shape(pos_dist)[0] * tf.shape(pos_dist)[1] + tf.shape(neg_dist)[0] * tf.shape(neg_dist)[1]
-                        return tf.cast(correct_count, dtype=tf.float32) / tf.cast(total_count, dtype=tf.float32)
-                    return accuracy
+        Arguments:
+            inputs_shape -- shape of inputs layer
+            outputs_shape -- shape of outputs layer
+            inputs_type -- type of inputs layer
+            outputs_type -- type of outputs layer
+            reset -- indicator of clearing default graph and logging directory
+            kwargs -- dictionary of keyword arguments
 
-                # Get all possible threshold values
-                total_dist = tf.reshape(tf.concat([pos_dist, neg_dist], 1), [-1])
-                thresholds = tf.unique(total_dist)[0]
+        """
+        super(TFEmbedding, self).initialize(inputs_shape=inputs_shape,
+                                            targets_shape=[None],
+                                            outputs_shape=outputs_shape,
+                                            inputs_type=inputs_type,
+                                            targets_type=tf.int32,
+                                            outputs_type=outputs_type,
+                                            reset=reset,
+                                            **kwargs)
 
-                # Calculate accuracy
-                accuracies = tf.map_fn(triplet_accuracy(pos_dist, neg_dist), thresholds)
-                return tf.reduce_max(accuracies)
+    def loss_function(self, targets, outputs, **kwargs):
+        """Compute the triplet loss by mini-batch of triplet embeddings.
 
-            metric_functions['max_accuracy'] = max_accuracy
+        Arguments:
+            targets -- tensor of batch with targets
+            outputs -- tensor of batch with outputs
+            kwargs -- dictionary of keyword arguments
 
-        # Reset default graph.
-        if reset_default_graph:
-            tf.reset_default_graph()
+        Return:
+            loss -- triplet loss operation
 
-        self.labels_placeholder_ = tf.placeholder(tf.int32, shape=[None], name='input_labels')
-        super(TFEmbedding, self).initialize(inputs_shape, outputs_shape, inputs_type=inputs_type, outputs_type=outputs_type, reset_default_graph=False, metric_functions=metric_functions, **kwargs)
-
-    def loss_function(self, outputs, labels_placeholder, **kwargs):
-        """Compute the triplet loss by mini-batch of triplet embeddings."""
+        """
         assert 'margin' in kwargs, \
-            'Argument \'margin\' should be passed: kwargs = %s' % kwargs
+            '''Argument \'margin\' should be passed:
+            kwargs = %s''' % kwargs
+
         assert 'exclude_hard' in kwargs, \
-            'Argument \'exclude_hard\' should be passed: kwargs = %s' % kwargs
+            '''Argument \'exclude_hard\' should be passed:
+            kwargs = %s''' % kwargs
+
         margin = kwargs['margin']
         exclude_hard = kwargs['exclude_hard']
 
@@ -141,76 +173,123 @@ class TFEmbedding(TFNeuralNetwork):
             return loss
 
         # Calculate distances
-        embedding_pos, embedding_neg = tf.dynamic_partition(outputs, partitions=self.labels_placeholder_, num_partitions=2)
+        embedding_pos, embedding_neg = tf.dynamic_partition(
+            outputs,
+            partitions=self.targets,
+            num_partitions=2)
         pos_dist = TFEmbedding.squared_distance(embedding_pos, embedding_pos)
         neg_dist = TFEmbedding.squared_distance(embedding_pos, embedding_neg)
 
         # Calculate losses
-        losses = tf.map_fn(triplet_loss(margin, exclude_hard), (pos_dist, neg_dist), dtype=tf.float32)
+        losses = tf.map_fn(fn=triplet_loss(margin, exclude_hard),
+                           elems=(pos_dist, neg_dist),
+                           dtype=tf.float32)
         return tf.reduce_mean(losses)
 
-    def fit(self, train_set, iteration_count,
+    def fit(self,
+            train_set,
+            epoch_count=None,
+            iter_count=None,
             optimizer=tf.train.RMSPropOptimizer,
             learning_rate=0.001,
-            epoch_count=None,
             val_set=None,
             summarizing_period=1,
             logging_period=100,
             checkpoint_period=10000,
             evaluation_period=10000):
-        """Train model."""
-        
+        """Train model.
+
+        Arguments:
+            train_set -- dataset for training
+            epoch_count -- training epochs count
+            iter_count -- training iterations count
+            optimizer -- tensorflow optimizer object
+            learning_rate -- initial gradient descent step
+            val_set -- dataset for validation
+            summarizing_period -- iterations count between summarizing
+            logging_period -- iterations count between logging to stdout
+            checkpoint_period -- iterations count between saving checkpoint
+            evaluation_period -- iterations count between evaluation
+
+        """
         assert isinstance(train_set, TFTripletset), \
-            'Training set should be object of TFTripletset type: type(train_set) = %s' % type(train_set)
+            '''Training set should be object of TFTripletset type:
+            type(train_set) = %s''' % type(train_set)
         if val_set is not None:
             assert isinstance(val_set, TFTripletset), \
-                'Validation set should be object of TFTripletset type: type(val_set) = %s' % type(val_set)
+                '''Validation set should be object of TFTripletset type:
+                type(val_set) = %s''' % type(val_set)
 
-        super(TFEmbedding, self).fit(train_set=train_set, iteration_count=iteration_count,
-                    optimizer=optimizer,
-                    learning_rate=learning_rate,
-                    epoch_count=epoch_count,
-                    val_set=val_set,
-                    summarizing_period=summarizing_period,
-                    logging_period=logging_period,
-                    checkpoint_period=checkpoint_period,
-                    evaluation_period=evaluation_period)
+        super(TFEmbedding, self).fit(train_set=train_set,
+                                     epoch_count=epoch_count,
+                                     iter_count=iter_count,
+                                     optimizer=optimizer,
+                                     learning_rate=learning_rate,
+                                     val_set=val_set,
+                                     summarizing_period=summarizing_period,
+                                     logging_period=logging_period,
+                                     checkpoint_period=checkpoint_period,
+                                     evaluation_period=evaluation_period)
 
-    def evaluate(self, dataset):
-        """Evaluate model."""
-        if isinstance(dataset, TFDataset):
-            warnings.warn('Evaluation function is not implemented for TFDataset!', Warning)
-            return {}
+    def evaluate(self, data):
+        """Evaluate model.
+
+        Arguments:
+            data -- batch or dataset of inputs
+
+        Return:
+            result -- metrics dictionary
+
+        """
+        if isinstance(data, TFBatch):
+            return super(TFEmbedding, self).evaluate(data)
         else:
-            return super(TFEmbedding, self).evaluate(dataset)
+            warnings.warn('''Evaluation function is not implemented for type:
+                type(data) = %s''' % type(data), Warning)
+            return {}
 
     @check_inputs_values
     def visualize(self, inputs_values, var_name, labels=None):
-        """Visualize embeddings in TensorBoard."""
+        """Visualize embeddings in TensorBoard.
+
+        Arguments:
+            inputs_values -- batch of inputs
+            var_name -- string key
+            labels -- optional embeddings labels
+
+        """
         if labels is not None:
             assert len(inputs_values) == len(labels), \
-                'Inputs values and labels should be the same lengths: len(inputs_values) = %s, len(labels) = %s' % (len(inputs_values), len(labels))
+                '''Inputs values and labels should be the same lengths:
+                len(inputs_values) = %s, len(labels) = %s''' \
+                % (len(inputs_values), len(labels))
 
         # Get visualization embeddings
         vis_embeddings = self.forward(inputs_values)
         if labels is not None:
             vis_labels = labels.flatten()
-        vis_name = tf.get_default_graph().unique_name(var_name, mark_as_used=False)
-        
+        vis_name = tf.get_default_graph().unique_name(var_name,
+                                                      mark_as_used=False)
+
         # Input set for Embedded TensorBoard visualization
-        vis_var = tf.Variable(tf.stack(vis_embeddings, axis=0), trainable=False, name=vis_name)
-        self.sess_.run(tf.variables_initializer([vis_var]))
+        vis_var = tf.Variable(tf.stack(vis_embeddings, axis=0),
+                              trainable=False,
+                              name=vis_name)
+        self.sess.run(tf.variables_initializer([vis_var]))
 
         # Add embedding tensorboard visualization
-        embed = self.projector_config_.embeddings.add()
+        embed = self.projector_config.embeddings.add()
         embed.tensor_name = vis_name + ':0'
         if labels is not None:
-            embed.metadata_path = os.path.join(self.log_dir_, embed.tensor_name + '_metadata.tsv')
-        tf.contrib.tensorboard.plugins.projector.visualize_embeddings(self.summary_writer_, self.projector_config_)
+            embed.metadata_path = os.path.join(
+                self.log_dir,
+                embed.tensor_name + '_metadata.tsv')
+        projector.visualize_embeddings(self.summary_writer,
+                                       self.projector_config)
 
         # Checkpoint configuration
         checkpoint_name = 'vis-checkpoint'
-        checkpoint_file = os.path.join(self.log_dir_, checkpoint_name)
+        checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
 
         # Save checkpoint
         self.save(checkpoint_file)
@@ -227,4 +306,5 @@ class TFEmbedding(TFNeuralNetwork):
                         f.write('\n' + str(label))
 
         # Print status info
-        print('For watching in TensorBoard run command:\ntensorboard --logdir "%s"' % self.log_dir_)
+        print('''For watching in TensorBoard run command:
+            \ntensorboard --logdir "%s"''' % self.log_dir)

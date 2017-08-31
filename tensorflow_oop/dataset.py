@@ -1,3 +1,7 @@
+"""
+Dataset and batch base classes.
+"""
+
 import numpy as np
 import pickle
 

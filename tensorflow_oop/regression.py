@@ -1,3 +1,7 @@
+"""
+Regression base models.
+"""
+
 import sys
 import os
 
