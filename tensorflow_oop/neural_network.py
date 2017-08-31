@@ -92,8 +92,7 @@ class TFNeuralNetwork(object):
                    inputs_type=tf.float32,
                    targets_type=tf.float32,
                    outputs_type=tf.float32,
-                   reset_default_graph=True,
-                   metric_functions={},
+                   reset=True,
                    **kwargs):
         """Initialize model.
 
@@ -104,24 +103,26 @@ class TFNeuralNetwork(object):
             inputs_type -- type of inputs layer
             targets_type -- type of targets layer
             outputs_type -- type of outputs layer
-            reset_default_graph -- indicator of clearing default graph
-            metric_functions -- functions for evaluation
+            reset -- indicator of clearing default graph
             kwargs -- dictionary of keyword arguments
 
         """
         print('Start initializing model...')
 
-        # Clean TensorBoard logging directory
-        if tf.gfile.Exists(self.log_dir):
-            tf.gfile.DeleteRecursively(self.log_dir)
-        tf.gfile.MakeDirs(self.log_dir)
+        # Reset if necessary
+        if reset:
+            tf.reset_default_graph()
+
+            # Clean TensorBoard logging directory
+            if tf.gfile.Exists(self.log_dir):
+                tf.gfile.DeleteRecursively(self.log_dir)
+
+        # Create TensorBoard logging directory
+        if not tf.gfile.Exists(self.log_dir):
+            tf.gfile.MakeDirs(self.log_dir)
 
         # Arguments
         self.kwargs = kwargs
-
-        # Reset default graph
-        if reset_default_graph:
-            tf.reset_default_graph()
 
         # Input, Target and Output layer shapes
         self.inputs_shape = list(inputs_shape)
