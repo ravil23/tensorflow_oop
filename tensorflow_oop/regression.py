@@ -13,6 +13,16 @@ class TFRegressor(TFNeuralNetwork):
     Regression model with Mean squared loss function.
     """
 
-    def loss_function(self, outputs, labels_placeholder, **kwargs):
-        """Mean squared error."""
-        return tf.losses.mean_squared_error(labels_placeholder, outputs)
+    def loss_function(self, targets, outputs, **kwargs):
+        """Mean squared error.
+
+        Arguments:
+            targets -- tensor of batch with targets
+            outputs -- tensor of batch with outputs
+            kwargs -- dictionary of keyword arguments
+
+        Return:
+            loss -- mean squared error operation
+
+        """
+        return tf.losses.mean_squared_error(targets, outputs)

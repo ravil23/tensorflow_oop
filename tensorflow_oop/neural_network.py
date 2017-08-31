@@ -103,7 +103,7 @@ class TFNeuralNetwork(object):
             inputs_type -- type of inputs layer
             targets_type -- type of targets layer
             outputs_type -- type of outputs layer
-            reset -- indicator of clearing default graph
+            reset -- indicator of clearing default graph and logging directory
             kwargs -- dictionary of keyword arguments
 
         """
@@ -199,6 +199,9 @@ class TFNeuralNetwork(object):
             inputs -- tensor of batch with inputs
             kwargs -- dictionary of keyword arguments
 
+        Return:
+            outputs -- tensor of outputs layer
+
         """
         raise Exception('Inference function should be overwritten!')
         return outputs
@@ -210,6 +213,9 @@ class TFNeuralNetwork(object):
             targets -- tensor of batch with targets
             outputs -- tensor of batch with outputs
             kwargs -- dictionary of keyword arguments
+
+        Return:
+            loss -- tensorflow operation for minimization
 
         """
         raise Exception('Loss function should be overwritten!')
@@ -471,7 +477,7 @@ class TFNeuralNetwork(object):
             inputs_values -- batch of inputs
 
         Return:
-            outputs_values -- batch of outputs 
+            outputs_values -- batch of outputs
 
         """
         return self.sess.run(self.outputs, feed_dict={
@@ -487,7 +493,7 @@ class TFNeuralNetwork(object):
             k -- top outputs count
 
         Return:
-            top_k_values -- batch of top k outputs 
+            top_k_values -- batch of top k outputs
 
         """
         return self.sess.run(tf.nn.top_k(self.outputs, k=k), feed_dict={

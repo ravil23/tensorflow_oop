@@ -33,7 +33,7 @@ class TFClassifier(TFNeuralNetwork):
             inputs_type -- type of inputs layer
             targets_type -- type of targets layer
             outputstype -- type of outputs layer
-            reset -- indicator of clearing default graph
+            reset -- indicator of clearing default graph and logging directory
             kwargs -- dictionary of keyword arguments
 
         """
@@ -49,24 +49,51 @@ class TFClassifier(TFNeuralNetwork):
 
         # Add accuracy metric
         def accuracy_function(targets, outputs):
-            correct_prediction = tf.equal(tf.argmax(targets, 1), tf.argmax(outputs, 1))
+            correct_prediction = tf.equal(tf.argmax(targets, 1),
+                                          tf.argmax(outputs, 1))
             return tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         self.add_metric('accuracy', accuracy_function)
 
     def loss_function(self, targets, outputs, **kwargs):
-        """Cross entropy."""
+        """Cross entropy.
+
+        Arguments:
+            targets -- tensor of batch with targets
+            outputs -- tensor of batch with outputs
+            kwargs -- dictionary of keyword arguments
+
+        Return:
+            loss -- cross entropy error operation
+
+        """
         return tf.losses.softmax_cross_entropy(labels_placeholder, outputs) 
 
     @check_inputs_values
     def probabilities(self, inputs_values):
-        """Get probabilites."""
+        """Get probabilities.
+
+        Arguments:
+            inputs_values -- batch of inputs
+
+        Return:
+            probability_values -- batch of probabilities
+
+        """
         return self.sess.run(self.probabilities, feed_dict={
             self.inputs: inputs_values,
         })
 
     @check_inputs_values
-    def classify(self, inputs_values):
-        """Best prediction."""
+    def predict(self, inputs_values):
+        """Get predictions corresponded to maximum probabilities.
+
+        Arguments:
+            inputs_values -- batch of inputs
+
+        Return:
+            prediction_values -- batch of predictions
+
+        """
         return self.sess.run(tf.argmax(self.probabilities, 1), feed_dict={
             self.inputs: inputs_values,
         })
