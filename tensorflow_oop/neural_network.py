@@ -454,14 +454,6 @@ class TFNeuralNetwork(object):
                         format_string = 'Eval on [validation set]:   %s   [%.3f sec]'
                         print(format_string % ('   '.join(metrics_list),
                                                duration))
-                    summary_str = self.sess.run(
-                        tf.summary.merge_all('eval'),
-                        feed_dict={
-                            self.inputs: val_set.data,
-                            self.targets: val_set.labels,
-                        }
-                    )
-                    self.summary_writer.add_summary(summary_str, iteration)
 
         self.summary_writer.flush()
         total_time = time.time() - start_fit_time
