@@ -14,9 +14,9 @@ from tensorflow_oop.embedding import *
 # Define model
 class MnistEmbedding(TFEmbedding):
     def inference(self, inputs, **kwargs):
-        input_size = self.inputs_shape_[0]
+        input_size = self.inputs_shape[0]
         hidden_size = kwargs['hidden_size']
-        output_size = self.outputs_shape_[0]
+        output_size = self.outputs_shape[0]
         with tf.name_scope('hidden'):
             weights = tf.Variable(
                 tf.truncated_normal([input_size, hidden_size],
@@ -46,27 +46,27 @@ def run(args):
     print('Testing    set shape: %s\n' % test_set.str_shape())
 
     # Initialization
-    model = MnistEmbedding(log_dir=args.log_dir,
-                           inputs_shape=train_set.data_shape,
-                           outputs_shape=[args.embedding_size],
-                           hidden_size=args.hidden_size,
-                           margin=args.margin,
-                           exclude_hard=args.exclude_hard)
+    model = MnistEmbedding(log_dir=args.log_dir)
+    model.initialize(inputs_shape=train_set.data_shape,
+                     outputs_shape=[args.embedding_size],
+                     hidden_size=args.hidden_size,
+                     margin=args.margin,
+                     exclude_hard=args.exclude_hard)
     print('%s\n' % model)
 
     # Fitting model
-    model.fit(train_set, iteration_count=None, epoch_count=args.epoch_count, val_set=val_set)
+    model.fit(train_set, epoch_count=args.epoch_count, val_set=val_set)
 
     # Visualization
-    model.visualize(inputs_values=train_set.data_[:args.vis_count],
+    model.visualize(inputs_values=train_set.data[:args.vis_count],
                     var_name='train_set',
-                    labels=train_set.labels_[:args.vis_count])
-    model.visualize(inputs_values=val_set.data_[:args.vis_count],
+                    labels=train_set.labels[:args.vis_count])
+    model.visualize(inputs_values=val_set.data[:args.vis_count],
                     var_name='val_set',
-                    labels=val_set.labels_[:args.vis_count])
-    model.visualize(inputs_values=test_set.data_[:args.vis_count],
+                    labels=val_set.labels[:args.vis_count])
+    model.visualize(inputs_values=test_set.data[:args.vis_count],
                     var_name='test_set',
-                    labels=test_set.labels_[:args.vis_count])
+                    labels=test_set.labels[:args.vis_count])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

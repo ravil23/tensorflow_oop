@@ -129,7 +129,7 @@ class TFEmbedding(TFNeuralNetwork):
 
         """
         super(TFEmbedding, self).initialize(inputs_shape=inputs_shape,
-                                            targets_shape=[None],
+                                            targets_shape=[],
                                             outputs_shape=outputs_shape,
                                             inputs_type=inputs_type,
                                             targets_type=tf.int32,
@@ -309,4 +309,4 @@ class TFEmbedding(TFNeuralNetwork):
 
         # Print status info
         print('''For watching in TensorBoard run command:
-            \ntensorboard --logdir "%s"''' % self.log_dir)
+              tensorboard --logdir "%s"''' % self.log_dir)

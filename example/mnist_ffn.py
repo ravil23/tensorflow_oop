@@ -14,9 +14,9 @@ from tensorflow_oop.classification import *
 # Define model
 class MnistFFN(TFClassifier):
     def inference(self, inputs, **kwargs):
-        input_size = self.inputs_shape_[0]
+        input_size = self.inputs_shape[0]
         hidden_size = kwargs['hidden_size']
-        output_size = self.outputs_shape_[0]
+        output_size = self.outputs_shape[0]
         with tf.variable_scope('hidden'):
             weights = tf.Variable(
                 tf.truncated_normal([input_size, hidden_size],
@@ -45,8 +45,9 @@ def run(args):
     print('Testing    set shape: %s\n' % test_set.str_shape())
 
     # Initialization
-    model = MnistFFN(log_dir=args.log_dir,
-                     inputs_shape=train_set.data_shape,
+    model = MnistFFN(log_dir=args.log_dir)
+    model.initialize(inputs_shape=train_set.data_shape,
+                     targets_shape=train_set.labels_shape,
                      outputs_shape=train_set.labels_shape,
                      hidden_size=args.hidden_size)
     print('%s\n' % model)
@@ -57,13 +58,13 @@ def run(args):
     # Evaluation
     if train_set is not None:
         train_eval = model.evaluate(train_set)
-        print('Results on training set:', train_eval)
+        print('Results on training set: %s' % train_eval)
     if val_set is not None:
         val_eval = model.evaluate(val_set)
-        print('Results on validation set:', val_eval)
+        print('Results on validation set: %s' % val_eval)
     if test_set is not None:
         test_eval = model.evaluate(test_set)
-        print('Results on testing set:', test_eval)
+        print('Results on testing set: %s' % test_eval)
 
     if args.show:
         print('Showing test set...')
@@ -71,10 +72,10 @@ def run(args):
         def show(data):
             cv2.imshow('image', data.reshape((28,28,1)))
             cv2.waitKey()
-        for i in range(test_set.size_):
-            result = model.classify([test_set.data_[i]])
-            print('Classification result:', result)
-            show(test_set.data_[i])
+        for i in range(test_set.size):
+            result = model.predict([test_set.data[i]])
+            print('Classification result: %s' % result)
+            show(test_set.data[i])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

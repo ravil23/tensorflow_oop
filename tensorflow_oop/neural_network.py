@@ -21,7 +21,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 def check_inputs_values(function):
     """Decorator for check corresponding inputs values."""
     def wrapper(self, inputs_values, *args, **kwargs):
-        new_shape = np.asarray(inputs_values.shape[1:])
+        new_shape = np.asarray(np.asarray(inputs_values).shape[1:])
         cur_shape = np.asarray(self.inputs_shape)
         assert np.all(new_shape == cur_shape), \
             '''Inputs values shape should be correspond to model inputs shape:
@@ -48,7 +48,12 @@ class TFNeuralNetwork(object):
         self.init = False
 
     def load(self, model_checkpoint_path=None):
-        """Load checkpoint."""
+        """Load checkpoint.
+
+        Arguments:
+            model_checkpoint_path -- checkpoint path, search last if not passed
+
+        """
         if model_checkpoint_path is None:
             model_checkpoint_path = tf.train.latest_checkpoint(self.log_dir)
             assert model_checkpoint_path is not None, \
@@ -71,6 +76,11 @@ class TFNeuralNetwork(object):
         self.targets = self.sess.graph.get_tensor_by_name('targets:0')
         self.outputs = self.sess.graph.get_tensor_by_name('outputs:0')
         self.loss = self.sess.graph.get_tensor_by_name('loss_function:0')
+
+        # Evaluation options
+        self.metrics = {}
+        self.metrics['loss'] = self.loss
+        tf.summary.scalar('loss', self.loss)
 
         # Input, Target and Output layer shapes
         self.inputs_shape = self.inputs.shape.as_list()[1:]
@@ -137,10 +147,9 @@ class TFNeuralNetwork(object):
         self.inputs = tf.placeholder(inputs_type,
                                      shape=[None] + self.inputs_shape,
                                      name='inputs')
-        if not hasattr(self, 'targets'):
-            self.targets = tf.placeholder(targets_type,
-                                          shape=[None] + self.targets_shape,
-                                          name='targets')
+        self.targets = tf.placeholder(targets_type,
+                                      shape=[None] + self.targets_shape,
+                                      name='targets')
 
         # Build a Graph that computes predictions from the inference model
         outputs = self.inference(self.inputs, **self.kwargs)
@@ -314,7 +323,7 @@ class TFNeuralNetwork(object):
                 '''Validation set should be initialized:
                 val_set.init = %s''' % val_set.init
 
-        print('Start training iter...')
+        print('Start training iteration...')
         start_fit_time = time.time()
 
         # Checkpoint configuration
@@ -329,15 +338,15 @@ class TFNeuralNetwork(object):
 
         # Get actual iter and epoch count
         if epoch_count is not None:
-            iter_count_by_epoch = (train_set.size_ * epoch_count) // train_set.batch_size_
-            if train_set.size_ % train_set.batch_size_ != 0:
+            iter_count_by_epoch = (train_set.size * epoch_count) // train_set.batch_size
+            if train_set.size % train_set.batch_size != 0:
                 iter_count_by_epoch += 1
             if iter_count is not None:
                 iter_count = min(iter_count, iter_count_by_epoch)
             else:
                 iter_count = iter_count_by_epoch
         else:
-            epoch_count = (iter_count * train_set.batch_size_) // train_set.size_
+            epoch_count = (iter_count * train_set.batch_size) // train_set.size
 
         # Global iter step and epoch number
         iteration = 0
@@ -352,8 +361,8 @@ class TFNeuralNetwork(object):
         for batch in train_set.iterbatches(iter_count):
             # Fill feed dict
             feed_dict = {
-                self.inputs: batch.data_,
-                self.targets: batch.labels_,
+                self.inputs: batch.data,
+                self.targets: batch.labels,
             }
 
             # Run one step of the model training
@@ -364,7 +373,7 @@ class TFNeuralNetwork(object):
 
             # Get current trained iter and epoch
             iteration += 1
-            epoch = iteration * train_set.batch_size_ // train_set.size_
+            epoch = iteration * train_set.batch_size // train_set.size
 
             # Write the summaries periodically
             if iteration % summarizing_period == 0 or iteration == iter_count:
@@ -442,20 +451,20 @@ class TFNeuralNetwork(object):
         if isinstance(data, TFDataset):
             assert data.init, \
                 '''Dataset should be initialized:
-                data.init_ = %s''' % data.init
+                data.init = %s''' % data.init
             print('Evaluating on dataset...')
 
         if isinstance(data, TFBatch):
-            assert hasattr(data, 'data_') and hasattr(data, 'labels_'), \
-                '''Batch should contain attributes \'data_\' and \'labels_\'.'''
+            assert hasattr(data, 'data') and hasattr(data, 'labels'), \
+                '''Batch should contain attributes \'data\' and \'labels\'.'''
 
         result = {}
         if len(self.metrics) > 0:
             metric_keys = list(self.metrics.keys())
             metric_values = list(self.metrics.values())
             estimates = self.sess.run(metric_values, feed_dict={
-                self.inputs: dataset.data,
-                self.targets: dataset.labels,
+                self.inputs: data.data,
+                self.targets: data.labels,
             })
             for i in range(len(self.metrics)):
                 result[metric_keys[i]] = estimates[i]

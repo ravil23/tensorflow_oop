@@ -14,10 +14,23 @@ from tensorflow_oop.neural_network import *
 class TFClassifier(TFNeuralNetwork):
 
     """
-    Classification model with Cross entropy loss function.
+    Classification model with Softmax and Cross entropy loss function.
     """
 
-    __slots__ = TFNeuralNetwork.__slots__ + ['probabilities']
+    __slots__ = TFNeuralNetwork.__slots__ + ['softmax',]
+
+    def load(self, model_checkpoint_path=None):
+        """Load checkpoint.
+
+        Arguments:
+            model_checkpoint_path -- checkpoint path, search last if not passed
+
+        """
+        super(TFClassifier, self).load(model_checkpoint_path=model_checkpoint_path)
+
+        # Get probability operation
+        self.softmax = self.sess.graph.get_tensor_by_name('softmax:0')
+        self.metrics['accuracy'] = self.sess.graph.get_tensor_by_name('accuracy_metric:0')
 
     def initialize(self,
                    inputs_shape,
@@ -51,13 +64,14 @@ class TFClassifier(TFNeuralNetwork):
                                              **kwargs)
 
         # Add probability operation
-        self.probabilities = tf.nn.softmax(self.outputs)
+        self.softmax = tf.nn.softmax(self.outputs, name='softmax')
 
         # Add accuracy metric
         def accuracy_function(targets, outputs):
             correct_prediction = tf.equal(tf.argmax(targets, 1),
                                           tf.argmax(outputs, 1))
-            return tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            return tf.reduce_mean(tf.cast(correct_prediction, tf.float32),
+                                  name='accuracy_metric')
         self.add_metric('accuracy', accuracy_function)
 
     def loss_function(self, targets, outputs, **kwargs):
@@ -72,7 +86,7 @@ class TFClassifier(TFNeuralNetwork):
             loss -- cross entropy error operation
 
         """
-        return tf.losses.softmax_cross_entropy(labels_placeholder, outputs) 
+        return tf.losses.softmax_cross_entropy(targets, outputs) 
 
     @check_inputs_values
     def probabilities(self, inputs_values):
@@ -85,7 +99,7 @@ class TFClassifier(TFNeuralNetwork):
             probability_values -- batch of probabilities
 
         """
-        return self.sess.run(self.probabilities, feed_dict={
+        return self.sess.run(self.softmax, feed_dict={
             self.inputs: inputs_values,
         })
 
@@ -100,6 +114,6 @@ class TFClassifier(TFNeuralNetwork):
             prediction_values -- batch of predictions
 
         """
-        return self.sess.run(tf.argmax(self.probabilities, 1), feed_dict={
+        return self.sess.run(tf.argmax(self.softmax, 1), feed_dict={
             self.inputs: inputs_values,
         })
