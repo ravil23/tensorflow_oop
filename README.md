@@ -8,7 +8,7 @@ python setup.py install
 ```
 
 ## Dependency
-* [Python 3.6.2+](https://www.python.org/downloads/release/python-362)
+* [Python 2.7+ or 3.5+]
 * [NumPy](https://github.com/numpy/numpy)
 * [TensorFlow](https://github.com/tensorflow/tensorflow)
 
