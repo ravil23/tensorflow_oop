@@ -72,7 +72,10 @@ class TFClassifier(TFNeuralNetwork):
                                           tf.argmax(outputs, 1))
             return tf.reduce_mean(tf.cast(correct_prediction, tf.float32),
                                   name='accuracy_metric')
-        self.add_metric('accuracy', accuracy_function)
+        self.add_metric('accuracy',
+                        accuracy_function,
+                        summary_type=tf.summary.scalar,
+                        collections=['train', 'validation', 'eval'])
 
     def loss_function(self, targets, outputs, **kwargs):
         """Cross entropy.

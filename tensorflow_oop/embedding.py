@@ -138,6 +138,48 @@ class TFEmbedding(TFNeuralNetwork):
                                             reset=reset,
                                             **kwargs)
 
+        # Add max fscore metric
+        def max_fscore_function(targets, outputs):
+            """Pairwise binary classification accuracy."""
+
+            # Calculate distances
+            embedding_pos, embedding_neg = tf.dynamic_partition(
+                outputs,
+                partitions=tf.reshape(targets, [-1]),
+                num_partitions=2)
+            pos_dist = TFEmbedding.squared_distance(embedding_pos, embedding_pos)
+            neg_dist = TFEmbedding.squared_distance(embedding_pos, embedding_neg)
+            tf.summary.histogram('pos_dist', pos_dist)
+            tf.summary.histogram('neg_dist', neg_dist)
+
+            def triplet_fscore(pos_dist, neg_dist):
+                """Triplet fscore function for binary classification
+                to positives and negatives."""
+                def fscore(threshold):
+                    tp = tf.cast(tf.count_nonzero(pos_dist < threshold),
+                                 tf.float32)
+                    fp = tf.cast(tf.count_nonzero(pos_dist >= threshold),
+                                 tf.float32)
+                    fn = tf.cast(tf.count_nonzero(neg_dist < threshold),
+                                 tf.float32)
+                    precision = tp / (tp + fp)
+                    recall = tp / (tp + fn)
+                    return 2. * (precision * recall) / (precision + recall)
+                return fscore
+
+            # Get all possible threshold values
+            total_dist = tf.reshape(tf.concat([pos_dist, neg_dist], 1), [-1])
+            thresholds = tf.unique(total_dist)[0]
+
+            # Calculate accuracy
+            fscores = tf.map_fn(triplet_fscore(pos_dist, neg_dist), thresholds)
+            return tf.reduce_max(fscores, name='max_fscore_metric')
+
+        self.add_metric('max_fscore',
+                        max_fscore_function,
+                        summary_type=tf.summary.scalar,
+                        collections=['train', 'validation'])
+
     def loss_function(self, targets, outputs, **kwargs):
         """Compute the triplet loss by mini-batch of triplet embeddings.
 
@@ -234,18 +276,19 @@ class TFEmbedding(TFNeuralNetwork):
                                      evaluation_period=evaluation_period)
 
     @check_initialization
-    def evaluate(self, data):
+    def evaluate(self, data, collection='eval'):
         """Evaluate model.
 
         Arguments:
             data -- batch or dataset of inputs
+            collection -- string value from ['train', 'validation', 'eval']
 
         Return:
             result -- metrics dictionary
 
         """
         if isinstance(data, TFBatch):
-            return super(TFEmbedding, self).evaluate(data)
+            return super(TFEmbedding, self).evaluate(data, collection=collection)
         else:
             warnings.warn('''Evaluation function is not implemented for type:
                 type(data) = %s''' % type(data), Warning)

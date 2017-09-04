@@ -78,9 +78,11 @@ class TFNeuralNetwork(object):
         self.loss = self.sess.graph.get_tensor_by_name('loss_function:0')
 
         # Evaluation options
-        self.metrics = {}
-        self.metrics['loss'] = self.loss
-        tf.summary.scalar('loss', self.loss)
+        self.metrics = {'train': {}, 'validation': {}, 'eval': {}}
+        self.add_metric('loss',
+                        lambda targets, outputs: self.loss,
+                        summary_type=tf.summary.scalar,
+                        collections=['train', 'validation'])
 
         # Input, Target and Output layer shapes
         self.inputs_shape = self.inputs.shape.as_list()[1:]
@@ -160,9 +162,11 @@ class TFNeuralNetwork(object):
         self.loss = tf.identity(loss, name='loss_function')
 
         # Evaluation options
-        self.metrics = {}
-        self.metrics['loss'] = self.loss
-        tf.summary.scalar('loss', self.loss)
+        self.metrics = {'train': {}, 'validation': {}, 'eval': {}}
+        self.add_metric('loss',
+                        lambda targets, outputs: self.loss,
+                        summary_type=tf.summary.scalar,
+                        collections=['train', 'validation'])
 
         # Create a session for running Ops on the Graph
         self.sess = tf.Session()
@@ -182,29 +186,35 @@ class TFNeuralNetwork(object):
 
         print('Finish initializing model.')
 
-    @check_initialization
-    def add_metric(self, key, metric_function):
+    def add_metric(self,
+                   key,
+                   metric_function,
+                   summary_type,
+                   collections):
         """Add logging and summarizing metric.
 
         Arguments:
             key -- string name
             metric_function -- function object with input arguments in format
                 function(targets, outputs)
+            summary_type -- tensorflow summary type (e.g. tf.summary.scalar)
+            collections -- list of strings from ['train', 'validation', 'eval']
 
         """
         assert isinstance(key, str), \
             '''Key should be string format:
             type(key) = %s''' % type(key)
-        assert key not in self.metrics, \
-            '''Key should be unique, but this key is exists:
-            key = %s''' % key
+        for collection in collections:
+            assert collection in ['train', 'validation', 'eval'], \
+                '''Collections should be only from list
+                ['train', 'validation', 'eval']:
+                collection = %s''' % collection
         metric = metric_function(self.targets, self.outputs)
-        if len(metric.shape) == 1 or \
-           len(metric.shape) == 2 and metric.shape[1] == 1:
-            tf.summary.scalar(key, metric)
-        else:
-            tf.summary.histogram(key, metric)
-        self.metrics[key] = metric
+        for collection in collections:
+            summary_type(collection + '/' + key,
+                         metric,
+                         collections=[collection])
+            self.metrics[collection][key] = metric
 
     def inference(self, inputs, **kwargs):
         """Model inference.
@@ -243,7 +253,7 @@ class TFNeuralNetwork(object):
             optimizer=tf.train.RMSPropOptimizer,
             learning_rate=0.001,
             val_set=None,
-            summarizing_period=1,
+            summarizing_period=100,
             logging_period=100,
             checkpoint_period=10000,
             evaluation_period=10000):
@@ -372,6 +382,7 @@ class TFNeuralNetwork(object):
 
             # Save iter time
             iter_times.append(time.time() - start_iter_time)
+            start_iter_time = time.time()
 
             # Get current trained iter and epoch
             iteration += 1
@@ -379,10 +390,22 @@ class TFNeuralNetwork(object):
 
             # Write the summaries periodically
             if iteration % summarizing_period == 0 or iteration == iter_count:
-                # Update the events file.
-                summary_str = self.sess.run(tf.summary.merge_all(),
+                # Update the events file with training summary.
+                summary_str = self.sess.run(tf.summary.merge_all('train'),
                                             feed_dict=feed_dict)
                 self.summary_writer.add_summary(summary_str, iteration)
+
+                # Update the events file with validation summary.
+                if val_set is not None:
+                    val_batch = val_set.next_batch()
+                    summary_str = self.sess.run(
+                        tf.summary.merge_all('validation'),
+                        feed_dict={
+                            self.inputs: val_batch.data,
+                            self.targets: val_batch.labels,
+                        }
+                    )
+                    self.summary_writer.add_summary(summary_str, iteration)
 
             # Print an overview periodically
             if iteration % logging_period == 0 or iteration == iter_count:
@@ -390,7 +413,7 @@ class TFNeuralNetwork(object):
                 duration = np.sum(iter_times[-logging_period:])
 
                 # Print logging info
-                metrics = self.evaluate(batch)
+                metrics = self.evaluate(batch, 'train')
                 metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
                 format_string = 'Iter %d / %d (epoch %d / %d):   %s   [%.3f sec]'
                 print(format_string % (iteration, iter_count,
@@ -414,39 +437,53 @@ class TFNeuralNetwork(object):
                 # Eval on training set
                 start_evaluation_time = time.time()
                 metrics = self.evaluate(train_set)
-                metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
-                duration = time.time() - start_evaluation_time
-                format_string = 'Eval on [training   set]:   %s   [%.3f sec]'
-                print(format_string % ('   '.join(metrics_list),
-                                       duration))
+                if len(metrics) > 0:
+                    metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
+                    duration = time.time() - start_evaluation_time
+                    format_string = 'Evaluation on [training   set]:   %s   [%.3f sec]'
+                    print(format_string % ('   '.join(metrics_list),
+                                           duration))
 
                 # Eval on validation set if necessary
                 if val_set is not None:
                     start_evaluation_time = time.time()
                     metrics = self.evaluate(val_set)
-                    metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
-                    duration = time.time() - start_evaluation_time
-                    format_string = 'Eval on [validation set]:   %s   [%.3f sec]'
-                    print(format_string % ('   '.join(metrics_list),
-                                           duration))
-
-            start_iter_time = time.time()
+                    if len(metrics) > 0:
+                        metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
+                        duration = time.time() - start_evaluation_time
+                        format_string = 'Eval on [validation set]:   %s   [%.3f sec]'
+                        print(format_string % ('   '.join(metrics_list),
+                                               duration))
+                    summary_str = self.sess.run(
+                        tf.summary.merge_all('eval'),
+                        feed_dict={
+                            self.inputs: val_set.data,
+                            self.targets: val_set.labels,
+                        }
+                    )
+                    self.summary_writer.add_summary(summary_str, iteration)
 
         self.summary_writer.flush()
         total_time = time.time() - start_fit_time
         print('Finish training iteration (total time %.3f sec).\n' % total_time)
 
     @check_initialization
-    def evaluate(self, data):
+    def evaluate(self, data, collection='eval'):
         """Evaluate model.
 
         Arguments:
             data -- batch or dataset of inputs
+            collection -- string value from ['train', 'validation', 'eval']
 
         Return:
             result -- metrics dictionary
 
         """
+        assert collection in ['train', 'validation', 'eval'], \
+            '''Collections should be only from list
+            ['train', 'validation', 'eval']:
+            collection = %s''' % collection
+
         assert isinstance(data, TFDataset) or isinstance(data, TFBatch), \
             '''Argument should be object of TFDataset or TFBatch type:
             type(data) = %s''' % type(data)
@@ -455,22 +492,22 @@ class TFNeuralNetwork(object):
             assert data.init, \
                 '''Dataset should be initialized:
                 data.init = %s''' % data.init
-            print('Evaluating on dataset...')
 
         if isinstance(data, TFBatch):
             assert hasattr(data, 'data') and hasattr(data, 'labels'), \
                 '''Batch should contain attributes \'data\' and \'labels\'.'''
 
         result = {}
-        if len(self.metrics) > 0:
-            metric_keys = list(self.metrics.keys())
-            metric_values = list(self.metrics.values())
+        if len(self.metrics[collection]) > 0:
+            metric_keys = list(self.metrics[collection].keys())
+            metric_values = list(self.metrics[collection].values())
             estimates = self.sess.run(metric_values, feed_dict={
                 self.inputs: data.data,
                 self.targets: data.labels,
             })
-            for i in range(len(self.metrics)):
+            for i in range(len(self.metrics[collection])):
                 result[metric_keys[i]] = estimates[i]
+
         return result
 
     @check_initialization
