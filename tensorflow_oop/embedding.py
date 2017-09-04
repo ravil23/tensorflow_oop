@@ -33,6 +33,7 @@ class TFTripletset(TFDataset):
 
         super(TFTripletset, self).initialize(data=data, labels=labels)
 
+    @check_initialization
     def split(self, train_size, val_size, test_size, shuffle):
         """Split dataset to train, validation and test set."""
         train_set, val_set, test_set = super(TFTripletset, self).split(
@@ -186,6 +187,7 @@ class TFEmbedding(TFNeuralNetwork):
                            dtype=tf.float32)
         return tf.reduce_mean(losses)
 
+    @check_initialization
     def fit(self,
             train_set,
             epoch_count=None,
@@ -231,6 +233,7 @@ class TFEmbedding(TFNeuralNetwork):
                                      checkpoint_period=checkpoint_period,
                                      evaluation_period=evaluation_period)
 
+    @check_initialization
     def evaluate(self, data):
         """Evaluate model.
 
@@ -248,6 +251,7 @@ class TFEmbedding(TFNeuralNetwork):
                 type(data) = %s''' % type(data), Warning)
             return {}
 
+    @check_initialization
     @check_inputs_values
     def visualize(self, inputs_values, var_name, labels=None):
         """Visualize embeddings in TensorBoard.

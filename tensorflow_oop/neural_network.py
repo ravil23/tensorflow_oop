@@ -182,6 +182,7 @@ class TFNeuralNetwork(object):
 
         print('Finish initializing model.')
 
+    @check_initialization
     def add_metric(self, key, metric_function):
         """Add logging and summarizing metric.
 
@@ -234,6 +235,7 @@ class TFNeuralNetwork(object):
         raise Exception('Loss function should be overwritten!')
         return loss
 
+    @check_initialization
     def fit(self,
             train_set,
             epoch_count=None,
@@ -434,6 +436,7 @@ class TFNeuralNetwork(object):
         total_time = time.time() - start_fit_time
         print('Finish training iteration (total time %.3f sec).\n' % total_time)
 
+    @check_initialization
     def evaluate(self, data):
         """Evaluate model.
 
@@ -470,6 +473,7 @@ class TFNeuralNetwork(object):
                 result[metric_keys[i]] = estimates[i]
         return result
 
+    @check_initialization
     def save(self, filename, global_step=None):
         """Save checkpoint.
 
@@ -483,6 +487,7 @@ class TFNeuralNetwork(object):
                                     global_step=global_step)
         print('Model saved to: %s' % saved_filename)
 
+    @check_initialization
     @check_inputs_values
     def forward(self, inputs_values):
         """Forward propagation.
@@ -498,6 +503,7 @@ class TFNeuralNetwork(object):
             self.inputs: inputs_values,
         })
 
+    @check_initialization
     @check_inputs_values
     def top_k(self, inputs_values, k):
         """Top k outputs.

@@ -88,6 +88,7 @@ class TFClassifier(TFNeuralNetwork):
         """
         return tf.losses.softmax_cross_entropy(targets, outputs) 
 
+    @check_initialization
     @check_inputs_values
     def probabilities(self, inputs_values):
         """Get probabilities.
@@ -103,6 +104,7 @@ class TFClassifier(TFNeuralNetwork):
             self.inputs: inputs_values,
         })
 
+    @check_initialization
     @check_inputs_values
     def predict(self, inputs_values):
         """Get predictions corresponded to maximum probabilities.
