@@ -138,7 +138,7 @@ class TFEmbedding(TFNeuralNetwork):
                                             reset=reset,
                                             **kwargs)
 
-        def max_fscore_function(targets, outputs):
+        def max_pair_fscore(targets, outputs):
             """Pairwise binary classification accuracy."""
 
             # Calculate distances
@@ -148,8 +148,6 @@ class TFEmbedding(TFNeuralNetwork):
                 num_partitions=2)
             pos_dist = TFEmbedding.squared_distance(embedding_pos, embedding_pos)
             neg_dist = TFEmbedding.squared_distance(embedding_pos, embedding_neg)
-            tf.summary.histogram('pos_dist', pos_dist)
-            tf.summary.histogram('neg_dist', neg_dist)
 
             def triplet_fscore(pos_dist, neg_dist):
                 """Triplet fscore function for binary classification
@@ -172,12 +170,52 @@ class TFEmbedding(TFNeuralNetwork):
 
             # Calculate accuracy
             fscores = tf.map_fn(triplet_fscore(pos_dist, neg_dist), thresholds)
-            return tf.reduce_max(fscores, name='max_fscore')
+            return tf.reduce_max(fscores, name='max_pair_fscore')
 
         # Add max fscore metric
-        max_fscore = max_fscore_function(self.targets, self.outputs)
-        self.add_metric('max_fscore',
-                        max_fscore,
+        self.add_metric('max_pair_fscore',
+                        max_pair_fscore(self.targets, self.outputs),
+                        summary_type=tf.summary.scalar,
+                        collections=['train', 'validation', 'log'])
+
+        def max_centroid_fscore(targets, outputs):
+            """Pairwise binary classification accuracy."""
+
+            # Calculate distances
+            embedding_pos, embedding_neg = tf.dynamic_partition(
+                outputs,
+                partitions=tf.reshape(targets, [-1]),
+                num_partitions=2)
+            centroid = tf.reduce_mean(embedding_pos, 1)
+            pos_dist = TFEmbedding.squared_distance([centroid], embedding_pos)
+            neg_dist = TFEmbedding.squared_distance([centroid], embedding_neg)
+
+            def triplet_fscore(pos_dist, neg_dist):
+                """Triplet fscore function for binary classification
+                to positives and negatives."""
+                def fscore(threshold):
+                    tp = tf.cast(tf.count_nonzero(pos_dist < threshold),
+                                 tf.float32)
+                    fp = tf.cast(tf.count_nonzero(pos_dist >= threshold),
+                                 tf.float32)
+                    fn = tf.cast(tf.count_nonzero(neg_dist < threshold),
+                                 tf.float32)
+                    precision = tp / (tp + fp)
+                    recall = tp / (tp + fn)
+                    return 2. * (precision * recall) / (precision + recall)
+                return fscore
+
+            # Get all possible threshold values
+            total_dist = tf.reshape(tf.concat([pos_dist, neg_dist], 1), [-1])
+            thresholds = tf.unique(total_dist)[0]
+
+            # Calculate accuracy
+            s = tf.map_fn(triplet_fscore(pos_dist, neg_dist), thresholds)
+            return tf.reduce_max(fscores, name='max_centroid_fscore')
+
+        # Add max centroid metric
+        self.add_metric('max_centroid_fscore',
+                        max_centroid_fscore(self.targets, self.outputs)
                         summary_type=tf.summary.scalar,
                         collections=['train', 'validation', 'log'])
 
