@@ -350,7 +350,6 @@ class TFNeuralNetwork(object):
             for gradient in gradients:
                 flatten_gradients.append(tf.reshape(gradient, [-1,]))
             return tf.concat(flatten_gradients, 0)
-        print gradients_function(0, 0)
         self.add_metric('gradients',
                         gradients_function,
                         summary_type=tf.summary.histogram,
