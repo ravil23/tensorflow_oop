@@ -248,7 +248,8 @@ class TFEmbedding(TFNeuralNetwork):
             summarizing_period=1,
             logging_period=100,
             checkpoint_period=10000,
-            evaluation_period=10000):
+            evaluation_period=10000,
+            max_gradient_norm=None):
         """Train model.
 
         Arguments:
@@ -281,7 +282,8 @@ class TFEmbedding(TFNeuralNetwork):
                                      summarizing_period=summarizing_period,
                                      logging_period=logging_period,
                                      checkpoint_period=checkpoint_period,
-                                     evaluation_period=evaluation_period)
+                                     evaluation_period=evaluation_period,
+                                     max_gradient_norm=max_gradient_norm)
 
     @check_initialization
     def evaluate(self, data, collection='eval'):
