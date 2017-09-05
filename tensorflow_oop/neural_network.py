@@ -46,6 +46,7 @@ class TFNeuralNetwork(object):
     def __init__(self, log_dir):
         self.log_dir = log_dir
         self.init = False
+        self.metrics = {'train': {}, 'validation': {}, 'eval': {}}
 
     def load(self, model_checkpoint_path=None):
         """Load checkpoint.
@@ -77,8 +78,7 @@ class TFNeuralNetwork(object):
         self.outputs = self.sess.graph.get_tensor_by_name('outputs:0')
         self.loss = self.sess.graph.get_tensor_by_name('loss_function:0')
 
-        # Evaluation options
-        self.metrics = {'train': {}, 'validation': {}, 'eval': {}}
+        # Add loss metric
         self.add_metric('loss',
                         lambda targets, outputs: self.loss,
                         summary_type=tf.summary.scalar,
@@ -161,8 +161,7 @@ class TFNeuralNetwork(object):
         loss = self.loss_function(self.targets, self.outputs, **self.kwargs)
         self.loss = tf.identity(loss, name='loss_function')
 
-        # Evaluation options
-        self.metrics = {'train': {}, 'validation': {}, 'eval': {}}
+        # Add loss metric
         self.add_metric('loss',
                         lambda targets, outputs: self.loss,
                         summary_type=tf.summary.scalar,
