@@ -66,14 +66,15 @@ class TFClassifier(TFNeuralNetwork):
         # Add probability operation
         self.softmax = tf.nn.softmax(self.outputs, name='softmax')
 
+        # Calculate accuracy
+        correct_prediction = tf.equal(tf.argmax(self.targets, 1),
+                                      tf.argmax(self.outputs, 1))
+        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32),
+                                  name='accuracy')
+
         # Add accuracy metric
-        def accuracy_function(targets, outputs):
-            correct_prediction = tf.equal(tf.argmax(targets, 1),
-                                          tf.argmax(outputs, 1))
-            return tf.reduce_mean(tf.cast(correct_prediction, tf.float32),
-                                  name='accuracy_metric')
         self.add_metric('accuracy',
-                        accuracy_function,
+                        accuracy,
                         summary_type=tf.summary.scalar,
                         collections=['train', 'validation', 'eval', 'log'])
 

@@ -76,11 +76,11 @@ class TFNeuralNetwork(object):
         self.inputs = self.sess.graph.get_tensor_by_name('inputs:0')
         self.targets = self.sess.graph.get_tensor_by_name('targets:0')
         self.outputs = self.sess.graph.get_tensor_by_name('outputs:0')
-        self.loss = self.sess.graph.get_tensor_by_name('loss_function:0')
+        self.loss = self.sess.graph.get_tensor_by_name('loss:0')
 
         # Add loss metric
         self.add_metric('loss',
-                        lambda targets, outputs: self.loss,
+                        self.loss,
                         summary_type=tf.summary.scalar,
                         collections=['train', 'validation', 'log'])
 
@@ -159,11 +159,11 @@ class TFNeuralNetwork(object):
 
         # Loss function
         loss = self.loss_function(self.targets, self.outputs, **self.kwargs)
-        self.loss = tf.identity(loss, name='loss_function')
+        self.loss = tf.identity(loss, name='loss')
 
         # Add loss metric
         self.add_metric('loss',
-                        lambda targets, outputs: self.loss,
+                        self.loss,
                         summary_type=tf.summary.scalar,
                         collections=['train', 'validation', 'log'])
 
@@ -187,15 +187,14 @@ class TFNeuralNetwork(object):
 
     def add_metric(self,
                    key,
-                   metric_function,
+                   metric,
                    summary_type,
                    collections):
         """Add logging and summarizing metric.
 
         Arguments:
             key -- string name
-            metric_function -- function object with input arguments in format
-                function(targets, outputs)
+            metric -- tensorflow operation
             summary_type -- tensorflow summary type (e.g. tf.summary.scalar)
             collections -- list of strings from ['train', 'validation', 'eval']
 
@@ -208,7 +207,6 @@ class TFNeuralNetwork(object):
                 '''Collections should be only from list
                 ['train', 'validation', 'eval', 'log']:
                 collection = %s''' % collection
-        metric = metric_function(self.targets, self.outputs)
         for collection in collections:
             summary_type(collection + '/' + key,
                          metric,
@@ -249,7 +247,7 @@ class TFNeuralNetwork(object):
             train_set,
             epoch_count=None,
             iter_count=None,
-            optimizer=tf.train.RMSPropOptimizer,
+            optimizer=tf.train.AdamOptimizer,
             learning_rate=0.001,
             val_set=None,
             summarizing_period=100,
@@ -342,39 +340,44 @@ class TFNeuralNetwork(object):
         checkpoint_name = 'fit-checkpoint'
         checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
 
-        # Add learning rate metric
+        # Convert learning rate to tensor
         learning_rate = tf.Variable(learning_rate,
                                     name='learning_rate',
                                     trainable=False)
+
+        # Add learning rate metric
         self.add_metric('learning_rate',
-                        lambda targets, outputs: learning_rate,
+                        learning_rate,
                         summary_type=tf.summary.scalar,
                         collections=['train'])
 
         # Calculate gradients
         tvars = tf.trainable_variables()
         gradients = tf.gradients(self.loss, tvars)
-        def gradients_function(targets, outputs):
-            flatten_gradients = []
-            for gradient in gradients:
-                flatten_gradients.append(tf.reshape(gradient, [-1,]))
-            return tf.concat(flatten_gradients, 0)
+
+        # Add gradients metric
+        flatten_gradients = []
+        for gradient in gradients:
+            flatten_gradients.append(tf.reshape(gradient, [-1,]))
+        concat_gradients = tf.concat(flatten_gradients, 0)
         self.add_metric('gradients',
-                        gradients_function,
+                        concat_gradients,
                         summary_type=tf.summary.histogram,
                         collections=['train'])
 
         # Gradient clipping if necessary
         if max_gradient_norm is not None:
+            # Calculate clipping gradients
             clip_gradients, _ = tf.clip_by_global_norm(gradients, 
                                                        max_gradient_norm)
-            def clip_gradients_function(targets, outputs):
-                flatten_gradients = []
-                for gradient in clip_gradients:
-                    flatten_gradients.append(tf.reshape(gradient, [-1,]))
-                return tf.concat(flatten_gradients, 0)
+            
+            # Add clipping gradients metric
+            flatten_clip_gradients = []
+            for clip_gradient in clip_gradients:
+                flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
+            concat_clip_gradients = tf.concat(flatten_clip_gradients, 0)
             self.add_metric('clip_gradients',
-                            clip_gradients_function,
+                            concat_clip_gradients,
                             summary_type=tf.summary.histogram,
                             collections=['train'])
             train_op = optimizer(learning_rate).apply_gradients(zip(clip_gradients, tvars))

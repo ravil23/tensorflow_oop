@@ -138,7 +138,6 @@ class TFEmbedding(TFNeuralNetwork):
                                             reset=reset,
                                             **kwargs)
 
-        # Add max fscore metric
         def max_fscore_function(targets, outputs):
             """Pairwise binary classification accuracy."""
 
@@ -173,10 +172,12 @@ class TFEmbedding(TFNeuralNetwork):
 
             # Calculate accuracy
             fscores = tf.map_fn(triplet_fscore(pos_dist, neg_dist), thresholds)
-            return tf.reduce_max(fscores, name='max_fscore_metric')
+            return tf.reduce_max(fscores, name='max_fscore')
 
+        # Add max fscore metric
+        max_fscore = max_fscore_function(self.targets, self.outputs)
         self.add_metric('max_fscore',
-                        max_fscore_function,
+                        max_fscore,
                         summary_type=tf.summary.scalar,
                         collections=['train', 'validation', 'log'])
 
@@ -223,11 +224,11 @@ class TFEmbedding(TFNeuralNetwork):
         pos_dist = TFEmbedding.squared_distance(embedding_pos, embedding_pos)
         neg_dist = TFEmbedding.squared_distance(embedding_pos, embedding_neg)
         self.add_metric('pos_dist',
-                        lambda targets, outputs: pos_dist,
+                        pos_dist,
                         summary_type=tf.summary.histogram,
                         collections=['train', 'validation'])
         self.add_metric('neg_dist',
-                        lambda targets, outputs: neg_dist,
+                        neg_dist,
                         summary_type=tf.summary.histogram,
                         collections=['train', 'validation'])
 
