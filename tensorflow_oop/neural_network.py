@@ -342,6 +342,15 @@ class TFNeuralNetwork(object):
         checkpoint_name = 'fit-checkpoint'
         checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
 
+        # Add learning rate metric
+        learning_rate = tf.Variable(learning_rate,
+                                    name=learning_rate,
+                                    trainable=False)
+        self.add_metric('learning_rate',
+                        lambda targets, outputs: learning_rate,
+                        summary_type=tf.summary.scalar,
+                        collections=['train'])
+
         # Calculate gradients
         tvars = tf.trainable_variables()
         gradients = tf.gradients(self.loss, tvars)
@@ -581,5 +590,12 @@ class TFNeuralNetwork(object):
         string = 'TFNeuralNetwork object:\n'
         for attr in self.__slots__:
             if hasattr(self, attr):
-                string += "%20s: %s\n" % (attr, getattr(self, attr))
+                if attr == 'metrics':
+                    buf = ''
+                    for collection in self.metrics:
+                        buf += '%30s: %s\n' % (collection,
+                                               self.metrics[collection])
+                    string += '%20s:\n%s' % (attr, buf)
+                else:
+                    string += '%20s: %s\n' % (attr, getattr(self, attr))
         return string[:-1]
