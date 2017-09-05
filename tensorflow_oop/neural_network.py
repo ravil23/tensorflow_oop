@@ -597,7 +597,7 @@ class TFNeuralNetwork(object):
                     buf = ''
                     for collection in self.metrics:
                         buf += '%30s: %s\n' % (collection,
-                                               self.metrics[collection])
+                                               [key for key in self.metrics[collection]])
                     string += '%20s:\n%s' % (attr, buf)
                 else:
                     string += '%20s: %s\n' % (attr, getattr(self, attr))
