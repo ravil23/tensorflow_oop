@@ -256,7 +256,8 @@ class TFNeuralNetwork(object):
             summarizing_period=100,
             logging_period=100,
             checkpoint_period=10000,
-            evaluation_period=10000):
+            evaluation_period=10000,
+            max_gradient_norm=None):
         """Train model.
 
         Arguments:
@@ -342,8 +343,26 @@ class TFNeuralNetwork(object):
         checkpoint_name = 'fit-checkpoint'
         checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
 
-        # Add to the Graph the Ops that calculate and apply gradients
-        train_op = optimizer(learning_rate).minimize(self.loss)
+        # Calculate gradients
+        tvars = tf.trainable_variables()
+        gradients = tf.gradients(self.loss, tvars)
+        self.add_metric('gradients',
+                        lambda targets, outputs: gradients,
+                        summary_type=tf.summary.histogram,
+                        collections=['train'])
+
+        # Gradient clipping if necessary
+        if max_gradient_norm is not None:
+            clip_gradients, _ = tf.clip_by_global_norm(gradients, 
+                                                       max_gradient_norm)
+            self.add_metric('clip_gradients',
+                            lambda targets, outputs: clip_gradients,
+                            summary_type=tf.summary.histogram,
+                            collections=['train'])
+            train_op = optimizer(learning_rate).apply_gradients(zip(clip_gradients, tvars))
+        else:
+            # Add to the Graph the Ops that calculate and apply gradients
+            train_op = optimizer(learning_rate).minimize(self.loss)
 
         # Run the Op to initialize the variables
         self.sess.run(tf.global_variables_initializer())

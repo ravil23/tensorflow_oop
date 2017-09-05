@@ -222,6 +222,14 @@ class TFEmbedding(TFNeuralNetwork):
             num_partitions=2)
         pos_dist = TFEmbedding.squared_distance(embedding_pos, embedding_pos)
         neg_dist = TFEmbedding.squared_distance(embedding_pos, embedding_neg)
+        self.add_metric('pos_dist',
+                        lambda targets, outputs: pos_dist,
+                        summary_type=tf.summary.histogram,
+                        collections=['train', 'validation'])
+        self.add_metric('neg_dist',
+                        lambda targets, outputs: neg_dist,
+                        summary_type=tf.summary.histogram,
+                        collections=['train', 'validation'])
 
         # Calculate losses
         losses = tf.map_fn(fn=triplet_loss(margin, exclude_hard),
