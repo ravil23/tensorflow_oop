@@ -344,7 +344,7 @@ class TFNeuralNetwork(object):
 
         # Add learning rate metric
         learning_rate = tf.Variable(learning_rate,
-                                    name=learning_rate,
+                                    name='learning_rate',
                                     trainable=False)
         self.add_metric('learning_rate',
                         lambda targets, outputs: learning_rate,
