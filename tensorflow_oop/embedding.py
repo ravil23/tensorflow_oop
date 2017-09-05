@@ -178,7 +178,7 @@ class TFEmbedding(TFNeuralNetwork):
         self.add_metric('max_fscore',
                         max_fscore_function,
                         summary_type=tf.summary.scalar,
-                        collections=['train', 'validation'])
+                        collections=['train', 'validation', 'log'])
 
     def loss_function(self, targets, outputs, **kwargs):
         """Compute the triplet loss by mini-batch of triplet embeddings.

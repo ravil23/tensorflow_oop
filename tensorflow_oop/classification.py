@@ -75,7 +75,7 @@ class TFClassifier(TFNeuralNetwork):
         self.add_metric('accuracy',
                         accuracy_function,
                         summary_type=tf.summary.scalar,
-                        collections=['train', 'validation', 'eval'])
+                        collections=['train', 'validation', 'eval', 'log'])
 
     def loss_function(self, targets, outputs, **kwargs):
         """Cross entropy.
