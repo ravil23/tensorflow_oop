@@ -164,11 +164,11 @@ class TFEmbedding(TFNeuralNetwork):
         self.add_metric('centroid_pos_dist',
                         centroid_pos_dist,
                         summary_type=tf.summary.histogram,
-                        collections=['train', 'validation'])
+                        collections=['batch_train', 'batch_validation'])
         self.add_metric('centroid_neg_dist',
                         centroid_neg_dist,
                         summary_type=tf.summary.histogram,
-                        collections=['train', 'validation'])
+                        collections=['batch_train', 'batch_validation'])
 
         def max_centroid_fscore(pos_dist, neg_dist):
             """Centroid binary classification fscore."""
@@ -196,7 +196,7 @@ class TFEmbedding(TFNeuralNetwork):
         self.add_metric('max_centroid_fscore',
                         max_centroid_fscore(centroid_pos_dist, centroid_neg_dist),
                         summary_type=tf.summary.scalar,
-                        collections=['train', 'validation', 'log'])
+                        collections=['batch_train', 'batch_validation', 'log_train'])
 
     def loss_function(self, targets, outputs, **kwargs):
         """Compute the triplet loss by mini-batch of triplet embeddings.
@@ -294,25 +294,6 @@ class TFEmbedding(TFNeuralNetwork):
                                      checkpoint_period=checkpoint_period,
                                      evaluation_period=evaluation_period,
                                      max_gradient_norm=max_gradient_norm)
-
-    @check_initialization
-    def evaluate(self, data, collection='eval'):
-        """Evaluate model.
-
-        Arguments:
-            data -- batch or dataset of inputs
-            collection -- string value from ['train', 'validation', 'eval']
-
-        Return:
-            result -- metrics dictionary
-
-        """
-        if isinstance(data, TFBatch):
-            return super(TFEmbedding, self).evaluate(data, collection=collection)
-        else:
-            warnings.warn('''Evaluation function is not implemented for type:
-                type(data) = %s''' % type(data), Warning)
-            return {}
 
     @check_initialization
     @check_inputs_values
