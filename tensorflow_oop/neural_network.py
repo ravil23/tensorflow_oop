@@ -36,16 +36,18 @@ class TFNeuralNetwork(object):
     Basic neural network model.
     """
 
-    __slots__ = ['init', 'log_dir',
+    __slots__ = ['init', 'loaded', 'log_dir',
                  'inputs_shape', 'targets_shape', 'outputs_shape',
                  'inputs', 'targets', 'outputs',
-                 'metrics', 'loss',
+                 'loss', 'global_step',
                  'sess', 'kwargs',
-                 'summary', 'summary_writer', 'projector_config']
+                 'summary', 'summary_writer', 'projector_config',
+                 'metrics']
 
     def __init__(self, log_dir):
         self.log_dir = log_dir
         self.init = False
+        self.loaded = False
         self.metrics = {'batch_train': {},
                         'batch_validation': {},
                         'log_train': {},
@@ -82,14 +84,19 @@ class TFNeuralNetwork(object):
         self.targets = self.sess.graph.get_tensor_by_name('targets:0')
         self.outputs = self.sess.graph.get_tensor_by_name('outputs:0')
         self.loss = self.sess.graph.get_tensor_by_name('loss:0')
+        self.global_step = self.sess.graph.get_tensor_by_name('global_step:0')
 
-        # Add loss metric
-        self.add_metric('loss',
-                        self.loss,
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train',
-                                     'batch_validation',
-                                     'log_train'])
+        # def load_metrics(collection):
+        #     collection_variables = self.sess.graph.get_collection(collection)
+        #     collection_metrics = {}
+        #     for var in collection_variables:
+        #         name = var.name
+        #         key = str(name[name.rfind('/') + 1 : name.rfind(':')])
+        #         collection_metrics[key] = var
+        #     return collection_metrics
+
+        # for collection in self.metrics:
+        #     self.metrics[collection] = load_metrics(collection)
 
         # Input, Target and Output layer shapes
         self.inputs_shape = self.inputs.shape.as_list()[1:]
@@ -105,7 +112,7 @@ class TFNeuralNetwork(object):
 
         # Enable initialization flag
         self.init = True
-
+        self.loaded = True
         print('Model loaded from: %s' % model_checkpoint_path)
 
     def initialize(self,
@@ -167,6 +174,9 @@ class TFNeuralNetwork(object):
         # Loss function
         loss = self.loss_function(self.targets, self.outputs, **self.kwargs)
         self.loss = tf.identity(loss, name='loss')
+
+        # Global step tensor
+        self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
         # Add loss metric
         self.add_metric('loss',
@@ -271,7 +281,7 @@ class TFNeuralNetwork(object):
             train_set,
             epoch_count=None,
             iter_count=None,
-            optimizer=tf.train.AdamOptimizer,
+            optimizer=tf.train.RMSPropOptimizer,
             learning_rate=0.001,
             val_set=None,
             summarizing_period=100,
@@ -294,6 +304,10 @@ class TFNeuralNetwork(object):
             evaluation_period -- iterations count between evaluation
 
         """
+        assert learning_rate > 0, \
+            '''Learning rate should be greater than zero:
+            learning_rate = %s''' % learning_rate
+
         assert epoch_count is not None or iter_count is not None, \
             '''Epoch or iter count should be passed:
             epoch_count = %s, iter_count = %s''' \
@@ -306,13 +320,13 @@ class TFNeuralNetwork(object):
             epoch_count = int(epoch_count)
         else:
             assert iter_count is not None, \
-                '''iter count should be passed if epoch count is None:
+                '''Iteration count should be passed if epoch count is None:
                 iter_count = %s, epoch_count = %s''' \
                 % (iter_count, epoch_count)
 
         if iter_count is not None:
             assert iter_count > 0, \
-                '''iter count should be greater than zero:
+                '''Iteration count should be greater than zero:
                 iter_count = %s''' % iter_count
             iter_count = int(iter_count)
 
@@ -357,65 +371,6 @@ class TFNeuralNetwork(object):
                 '''Validation set should be initialized:
                 val_set.init = %s''' % val_set.init
 
-        print('Start training iteration...')
-        start_fit_time = time.time()
-
-        # Checkpoint configuration
-        checkpoint_name = 'fit-checkpoint'
-        checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
-
-        # Convert learning rate to tensor
-        learning_rate = tf.Variable(learning_rate,
-                                    name='learning_rate',
-                                    trainable=False)
-
-        # Add learning rate metric
-        self.add_metric('learning_rate',
-                        learning_rate,
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train'])
-
-        # Calculate gradients
-        tvars = tf.trainable_variables()
-        gradients = tf.gradients(self.loss, tvars)
-
-        # Add gradients metric
-        flatten_gradients = []
-        for gradient in gradients:
-            flatten_gradients.append(tf.reshape(gradient, [-1,]))
-        concat_gradients = tf.concat(flatten_gradients, 0)
-        self.add_metric('gradients',
-                        concat_gradients,
-                        summary_type=tf.summary.histogram,
-                        collections=['batch_train'])
-
-        # Gradient clipping if necessary
-        if max_gradient_norm is not None:
-            # Calculate clipping gradients
-            clip_gradients, gradient_norm = tf.clip_by_global_norm(gradients, 
-                                                                   max_gradient_norm)
-            
-            # Add clipping gradients metric
-            flatten_clip_gradients = []
-            for clip_gradient in clip_gradients:
-                flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
-            concat_clip_gradients = tf.concat(flatten_clip_gradients, 0)
-            self.add_metric('clip_gradients',
-                            concat_clip_gradients,
-                            summary_type=tf.summary.histogram,
-                            collections=['batch_train'])
-            self.add_metric('gradient_norm',
-                            gradient_norm,
-                            summary_type=tf.summary.scalar,
-                            collections=['batch_train'])
-            train_op = optimizer(learning_rate).apply_gradients(zip(clip_gradients, tvars))
-        else:
-            # Add to the Graph the Ops that calculate and apply gradients
-            train_op = optimizer(learning_rate).minimize(self.loss)
-
-        # Run the Op to initialize the variables
-        self.sess.run(tf.global_variables_initializer())
-
         # Get actual iter and epoch count
         if epoch_count is not None:
             iter_count_by_epoch = (train_set.size * epoch_count) // train_set.batch_size
@@ -429,8 +384,73 @@ class TFNeuralNetwork(object):
             epoch_count = (iter_count * train_set.batch_size) // train_set.size
 
         # Global iter step and epoch number
-        iteration = 0
-        epoch = 0
+        iteration = self.global_step.eval(session=self.sess)
+        epoch = iteration * train_set.batch_size // train_set.size
+        batch_count = iter_count - iteration
+        assert batch_count >= 0, \
+            '''Iteration count should be greater than current iteration:
+            iter_count = %s, iteration = %s''' % (iter_count, iteration)
+        if batch_count == 0:
+            print('Current iteration is equal to iteration count.')
+            return
+
+        print('Start training iteration...')
+        start_fit_time = time.time()
+
+        # Checkpoint configuration
+        checkpoint_name = 'fit-checkpoint'
+        checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
+
+        if not self.loaded:
+            optimizer_op = optimizer(learning_rate)
+
+            # Calculate gradients
+            tvars = tf.trainable_variables()
+            gradients = tf.gradients(self.loss, tvars)
+
+            # Add gradients metric
+            flatten_gradients = []
+            for gradient in gradients:
+                flatten_gradients.append(tf.reshape(gradient, [-1,]))
+            concat_gradients = tf.concat(flatten_gradients, 0)
+            self.add_metric('gradients',
+                            concat_gradients,
+                            summary_type=tf.summary.histogram,
+                            collections=['batch_train'])
+
+            # Gradient clipping if necessary
+            if max_gradient_norm is not None:
+                # Calculate clipping gradients
+                clip_gradients, gradient_norm = tf.clip_by_global_norm(gradients, 
+                                                                       max_gradient_norm)
+                
+                # Add clipping gradients metric
+                flatten_clip_gradients = []
+                for clip_gradient in clip_gradients:
+                    flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
+                concat_clip_gradients = tf.concat(flatten_clip_gradients, 0)
+                self.add_metric('clip_gradients',
+                                concat_clip_gradients,
+                                summary_type=tf.summary.histogram,
+                                collections=['batch_train'])
+                self.add_metric('gradient_norm',
+                                gradient_norm,
+                                summary_type=tf.summary.scalar,
+                                collections=['batch_train'])
+                # Add to the Graph the Ops that apply gradients
+                train_op = optimizer_op.apply_gradients(zip(clip_gradients, tvars),
+                                                        global_step=self.global_step,
+                                                        name='train_op')
+            else:
+                # Add to the Graph the Ops that minimize loss
+                train_op = optimizer_op.minimize(self.loss,
+                                                 global_step=self.global_step,
+                                                 name='train_op')
+
+            # Run the Op to initialize the variables
+            self.sess.run(tf.global_variables_initializer())
+        else:
+            train_op = self.sess.graph.get_operation_by_name('train_op')
 
         # Start the training loop
         iter_times = []
@@ -438,7 +458,7 @@ class TFNeuralNetwork(object):
         last_logging_iter = 0
 
         # Loop over all batches
-        for batch in train_set.iterbatches(iter_count):
+        for batch in train_set.iterbatches(batch_count):
             # Fill feed dict
             feed_dict = {
                 self.inputs: batch.data,
@@ -453,7 +473,7 @@ class TFNeuralNetwork(object):
             start_iter_time = time.time()
 
             # Get current trained iter and epoch
-            iteration += 1
+            iteration = self.global_step.eval(session=self.sess)
             epoch = iteration * train_set.batch_size // train_set.size
 
             # Write the summaries periodically

@@ -47,11 +47,14 @@ def run(args):
 
     # Initialization
     model = MnistEmbedding(log_dir=args.log_dir)
-    model.initialize(inputs_shape=train_set.data_shape,
-                     outputs_shape=[args.embedding_size],
-                     hidden_size=args.hidden_size,
-                     margin=args.margin,
-                     exclude_hard=args.exclude_hard)
+    if args.load:
+        model.load()
+    else:
+        model.initialize(inputs_shape=train_set.data_shape,
+                         outputs_shape=[args.embedding_size],
+                         hidden_size=args.hidden_size,
+                         margin=args.margin,
+                         exclude_hard=args.exclude_hard)
     print('%s\n' % model)
 
     # Fitting model
@@ -93,6 +96,8 @@ if __name__ == '__main__':
         help='triplet loss margin')    
     parser.add_argument('--exclude_hard', default=False, action='store_true',
         help='exclude negative elements with loss greater than margin')
+    parser.add_argument('--load', default=False, action='store_true',
+        help='load from checkpoint')
 
     args = parser.parse_args()
 

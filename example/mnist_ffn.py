@@ -46,10 +46,13 @@ def run(args):
 
     # Initialization
     model = MnistFFN(log_dir=args.log_dir)
-    model.initialize(inputs_shape=train_set.data_shape,
-                     targets_shape=train_set.labels_shape,
-                     outputs_shape=train_set.labels_shape,
-                     hidden_size=args.hidden_size)
+    if args.load:
+        model.load()
+    else:
+        model.initialize(inputs_shape=train_set.data_shape,
+                         targets_shape=train_set.labels_shape,
+                         outputs_shape=train_set.labels_shape,
+                         hidden_size=args.hidden_size)
     print('%s\n' % model)
 
     # Fitting model
@@ -92,6 +95,8 @@ if __name__ == '__main__':
         help='hidden layer size')
     parser.add_argument('--epoch_count', default=2, type=int,
         help='training epoch count')
+    parser.add_argument('--load', default=False, action='store_true',
+        help='load from checkpoint')
     parser.add_argument('--show', default=False, action='store_true',
         help='show classification results in window (OpenCV requiered)')
 
