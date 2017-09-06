@@ -141,9 +141,6 @@ class TFEmbedding(TFNeuralNetwork):
         def centroid_dist(embedding_pos, embedding_neg):
             """Centroid distances."""
             centroid = tf.reduce_mean(embedding_pos, 0)
-            print embedding_pos
-            print embedding_neg
-            print centroid
             centroid_pos_dist = TFEmbedding.squared_distance(
                 tf.expand_dims(centroid, 0),
                 embedding_pos)
