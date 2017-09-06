@@ -648,7 +648,7 @@ class TFNeuralNetwork(object):
                     buf = ''
                     collections = sorted(list(self.metrics.keys()))
                     for collection in collections:
-                        keys = list(self.metrics[collection]].keys())
+                        keys = list(self.metrics[collection].keys())
                         buf += '%30s: %s\n' % (collection, sorted(keys))
                     string += '%20s:\n%s' % (attr, buf)
                 else:
