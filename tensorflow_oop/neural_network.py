@@ -467,6 +467,9 @@ class TFNeuralNetwork(object):
             print('%20s: %s' % ('iter_count', iter_count))
             print('%20s: %s' % ('optimizer', optimizer))
             print('%20s: %s' % ('learning_rate', learning_rate))
+            print('%20s: %s' % ('train_batch_size', train_set.batch_size))
+            if val_set is not None:
+                print('%20s: %s' % ('val_batch_size', val_set.batch_size))
             print('%20s: %s' % ('summarizing_period', summarizing_period))
             print('%20s: %s' % ('logging_period', logging_period))
             print('%20s: %s' % ('checkpoint_period', checkpoint_period))
