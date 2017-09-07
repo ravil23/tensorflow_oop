@@ -152,7 +152,9 @@ class TFNeuralNetwork(object):
             tf.gfile.MakeDirs(self.log_dir)
 
         # Create a session for running Ops on the Graph
-        self.sess = tf.Session()
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        self.sess = tf.Session(config=config)
 
         # Arguments
         self.kwargs = kwargs
