@@ -440,6 +440,7 @@ class TFNeuralNetwork(object):
                                 gradient_norm,
                                 summary_type=tf.summary.scalar,
                                 collections=['batch_train'])
+
                 # Add to the Graph the Ops that apply gradients
                 train_op = optimizer_op.apply_gradients(zip(clip_gradients, tvars),
                                                         global_step=self.global_step,

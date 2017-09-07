@@ -267,7 +267,7 @@ class TFDataset(object):
     def save(self, filename):
         """Save dataset to file."""
         with open(filename, 'wb') as f:
-            pickle.dump(self, f)
+            pickle.dump(self, f, protocol=-1)
 
     @check_initialization
     def generate_sequences(self,
