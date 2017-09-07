@@ -417,8 +417,9 @@ class TFNeuralNetwork(object):
             flatten_gradients = []
             for gradient in gradients:
                 flatten_gradients.append(tf.reshape(gradient, [-1,]))
-            concat_gradients = tf.concat(flatten_gradients, 0)
-            self.add_metric('gradients',
+            concat_gradients = tf.concat(flatten_gradients, 0,
+                                         name='all_gradients')
+            self.add_metric('all_gradients',
                             concat_gradients,
                             summary_type=tf.summary.histogram,
                             collections=['batch_train'])
@@ -433,8 +434,9 @@ class TFNeuralNetwork(object):
                 flatten_clip_gradients = []
                 for clip_gradient in clip_gradients:
                     flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
-                concat_clip_gradients = tf.concat(flatten_clip_gradients, 0)
-                self.add_metric('clip_gradients',
+                concat_clip_gradients = tf.concat(flatten_clip_gradients, 0,
+                                                  name='all_clip_gradients')
+                self.add_metric('all_clip_gradients',
                                 concat_clip_gradients,
                                 summary_type=tf.summary.histogram,
                                 collections=['batch_train'])
