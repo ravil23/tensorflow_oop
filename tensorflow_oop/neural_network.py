@@ -40,9 +40,9 @@ class TFNeuralNetwork(object):
                  'inputs_shape', 'targets_shape', 'outputs_shape',
                  'inputs', 'targets', 'outputs',
                  'loss', 'global_step',
-                 'sess', 'kwargs',
-                 'summary', 'summary_writer', 'projector_config',
-                 'metrics']
+                 'sess', 'summary_writer',
+                 'projector_config',
+                 'kwargs', 'metrics']
 
     def __init__(self, log_dir):
         self.log_dir = log_dir
@@ -673,6 +673,12 @@ class TFNeuralNetwork(object):
                     for collection in collections:
                         keys = list(self.metrics[collection].keys())
                         buf += '%30s: %s\n' % (collection, sorted(keys))
+                    string += '%20s:\n%s' % (attr, buf)
+                elif attr == 'kwargs':
+                    buf = ''
+                    keys = sorted(list(self.kwargs.keys()))
+                    for key in keys:
+                        buf += '%30s: %s\n' % (key, self.kwargs[key])
                     string += '%20s:\n%s' % (attr, buf)
                 else:
                     string += '%20s: %s\n' % (attr, getattr(self, attr))
