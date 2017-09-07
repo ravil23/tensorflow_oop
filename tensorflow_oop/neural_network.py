@@ -74,7 +74,9 @@ class TFNeuralNetwork(object):
                                            clear_devices=True)
 
         # Create a session for running Ops on the Graph
-        self.sess = tf.Session()
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        self.sess = tf.Session(config=config)
 
         # Restore model from saver
         saver.restore(self.sess, model_checkpoint_path)
@@ -455,6 +457,27 @@ class TFNeuralNetwork(object):
             self.sess.run(tf.global_variables_initializer())
         else:
             train_op = self.sess.graph.get_operation_by_name('train_op')
+
+        # Print training options
+        def print_options():
+            if epoch_count is not None:
+                print('%20s: %s' % ('epoch_count', epoch_count))
+            print('%20s: %s' % ('iter_count', iter_count))
+            print('%20s: %s' % ('optimizer', optimizer))
+            print('%20s: %s' % ('learning_rate', learning_rate))
+            print('%20s: %s' % ('summarizing_period', summarizing_period))
+            print('%20s: %s' % ('logging_period', logging_period))
+            print('%20s: %s' % ('checkpoint_period', checkpoint_period))
+            print('%20s: %s' % ('evaluation_period', evaluation_period))
+            if max_gradient_norm is not None:
+                print('%20s: %s' % ('max_gradient_norm', max_gradient_norm))
+            buf = ''
+            collections = sorted(list(self.metrics.keys()))
+            for collection in collections:
+                keys = list(self.metrics[collection].keys())
+                buf += '%30s: %s\n' % (collection, sorted(keys))
+            print('%20s:\n%s' % ('metrics', buf))
+        print_options()
 
         # Start the training loop
         iter_times = []
