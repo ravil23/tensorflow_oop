@@ -86,17 +86,17 @@ class TFNeuralNetwork(object):
         self.loss = self.sess.graph.get_tensor_by_name('loss:0')
         self.global_step = self.sess.graph.get_tensor_by_name('global_step:0')
 
-        # def load_metrics(collection):
-        #     collection_variables = self.sess.graph.get_collection(collection)
-        #     collection_metrics = {}
-        #     for var in collection_variables:
-        #         name = var.name
-        #         key = str(name[name.rfind('/') + 1 : name.rfind(':')])
-        #         collection_metrics[key] = var
-        #     return collection_metrics
+        def load_metrics(collection):
+            collection_variables = self.sess.graph.get_collection(collection)
+            collection_metrics = {}
+            for var in collection_variables:
+                name = var.name
+                key = str(name[name.rfind('/') + 1 : name.rfind(':')])
+                collection_metrics[key] = var
+            return collection_metrics
 
-        # for collection in self.metrics:
-        #     self.metrics[collection] = load_metrics(collection)
+        for collection in self.metrics:
+            self.metrics[collection] = load_metrics('metric_' + collection)
 
         # Input, Target and Output layer shapes
         self.inputs_shape = self.inputs.shape.as_list()[1:]
@@ -151,6 +151,9 @@ class TFNeuralNetwork(object):
         if not tf.gfile.Exists(self.log_dir):
             tf.gfile.MakeDirs(self.log_dir)
 
+        # Create a session for running Ops on the Graph
+        self.sess = tf.Session()
+
         # Arguments
         self.kwargs = kwargs
 
@@ -185,9 +188,6 @@ class TFNeuralNetwork(object):
                         collections=['batch_train',
                                      'batch_validation',
                                      'log_train'])
-
-        # Create a session for running Ops on the Graph
-        self.sess = tf.Session()
 
         # Instantiate a SummaryWriter to output summaries and the Graph
         self.summary_writer = tf.summary.FileWriter(self.log_dir,
@@ -245,6 +245,7 @@ class TFNeuralNetwork(object):
             summary_type(collection + '/' + key,
                          metric,
                          collections=[collection])
+            self.sess.graph.add_to_collection('metric_' + collection, metric)
             self.metrics[collection][key] = metric
 
     def inference(self, inputs, **kwargs):
