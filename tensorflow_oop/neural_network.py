@@ -413,6 +413,17 @@ class TFNeuralNetwork(object):
             tvars = tf.trainable_variables()
             gradients = tf.gradients(self.loss, tvars)
 
+            # Add tvars metric
+            flatten_tvars = []
+            for tvar in tvars:
+                flatten_tvars.append(tf.reshape(tvar, [-1,]))
+            concat_tvars = tf.concat(flatten_tvars, 0,
+                                     name='all_tvars')
+            self.add_metric('all_tvars',
+                            concat_tvars,
+                            summary_type=tf.summary.histogram,
+                            collections=['batch_train'])
+
             # Add gradients metric
             flatten_gradients = []
             for gradient in gradients:
