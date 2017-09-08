@@ -242,6 +242,17 @@ class TFEmbedding(TFNeuralNetwork):
         losses = tf.map_fn(fn=triplet_loss(margin, exclude_hard),
                            elems=(pos_dist, neg_dist),
                            dtype=tf.float32)
+
+        # Add triplets count metric
+        self.add_metric('all_triplets_count',
+                        tf.size(losses, name='all_triplets_count'),
+                        summary_type=tf.summary.scalar,
+                        collections=['batch_train', 'batch_validation'])
+        self.add_metric('valid_triplets_count',
+                        tf.count_nonzero(losses, name='valid_triplets_count'),
+                        summary_type=tf.summary.scalar,
+                        collections=['batch_train', 'batch_validation'])
+
         return tf.reduce_mean(losses)
 
     @check_initialization
@@ -252,7 +263,7 @@ class TFEmbedding(TFNeuralNetwork):
             optimizer=tf.train.RMSPropOptimizer,
             learning_rate=0.001,
             val_set=None,
-            summarizing_period=1,
+            summarizing_period=100,
             logging_period=100,
             checkpoint_period=10000,
             evaluation_period=10000,

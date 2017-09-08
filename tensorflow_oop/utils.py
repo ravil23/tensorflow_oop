@@ -11,7 +11,7 @@ def devices_list():
         result -- tuple of pairs (name, physical_device_desc)
 
     """
-    local_device_protos = tf.python.client.device_lib.list_local_devices()
+    local_device_protos = tensorflow.python.client.device_lib.list_local_devices()
     return [(x.name, x.physical_device_desc) for x in local_device_protos]
 
 def checkpoints_list(log_dir):
