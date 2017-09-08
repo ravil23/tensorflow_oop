@@ -243,17 +243,21 @@ class TFEmbedding(TFNeuralNetwork):
                            elems=(pos_dist, neg_dist),
                            dtype=tf.float32)
 
+        # Filter zero losses
+        mask = losses > 0
+        valid_losses = tf.boolean_mask(losses, mask)
+
         # Add triplets count metric
         self.add_metric('all_triplets_count',
                         tf.size(losses, name='all_triplets_count'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation'])
         self.add_metric('valid_triplets_count',
-                        tf.count_nonzero(losses, name='valid_triplets_count'),
+                        tf.size(valid_losses, name='valid_triplets_count'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation'])
 
-        return tf.reduce_mean(losses)
+        return tf.reduce_mean(valid_losses)
 
     @check_initialization
     def fit(self,
