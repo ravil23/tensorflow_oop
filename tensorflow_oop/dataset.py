@@ -5,6 +5,7 @@ Dataset and batch base classes.
 import numpy as np
 import pickle
 
+
 def check_initialization(function):
     """Decorator for check initialization."""
     def wrapper(self, *args, **kwargs):
@@ -12,6 +13,7 @@ def check_initialization(function):
             'Object should be initialized: self.init = %s' % self.init
         return function(self, *args, **kwargs)
     return wrapper
+
 
 class TFBatch:
 
@@ -28,6 +30,7 @@ class TFBatch:
         for attr in self.__dict__:
             string += "%s: \n%s\n" % (attr, getattr(self, attr))
         return string[:-1]
+
 
 class TFDataset(object):
 

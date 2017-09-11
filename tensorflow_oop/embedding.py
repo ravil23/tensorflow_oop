@@ -80,7 +80,7 @@ class TFTripletset(TFDataset):
         rand_pos_key = positive_keys[np.random.randint(0, len(positive_keys))]
 
         def random_sample(data, count):
-            indexes = np.arange(data.shape[0])
+            indexes = np.arange(len(data))
             rand_indexes = np.random.choice(indexes, count, replace=False)
             return data[rand_indexes]
 
@@ -96,6 +96,155 @@ class TFTripletset(TFDataset):
         batch_data = np.vstack([positives, negatives])
         batch_labels = np.append(np.zeros(len(positives)),
                                  np.ones(len(negatives)))
+        return TFBatch(data=batch_data, labels=batch_labels)
+
+class TFTripletSequence(TFTripletset):
+
+    """
+    Triplet sequences generation structure.
+    """
+
+    __slots__ = TFTripletset.__slots__ + ['current_positives',
+                                          'current_negatives',
+                                          'max_sequence_length']
+
+    def initialize(self, data, labels):
+        """Set data and labels."""
+        assert data is not None and labels is not None, \
+            '''Data and labels should be passed:
+            data = %s, labels = %s''' % (data, labels)
+
+        ndim = np.asarray(labels).ndim
+        assert ndim == 1, \
+            '''Labels should be 1D dimension: labels.ndim = %s''' % ndim
+
+        assert len(data) == len(labels), \
+            '''Data and labels should be the same length:
+            len(data) = %s, len(labels) = %s''' % (len(data), len(labels))
+
+        # Processing data
+        if data is not None:
+            self.size = len(data)
+            self.data = np.array([np.asarray(elem) for elem in data])
+            self.data_shape = [None] + list(self.data[0].shape[1:])
+            self.data_ndim = len(self.data_shape)
+        else:
+            self.data = None
+            self.data_shape = None
+            self.data_ndim = None
+            self.normalized = None
+            self.normalization_mask = None
+            self.normalization_mean = None
+            self.normalization_std = None
+
+        # Processing labels
+        if labels is not None:
+            self.size = len(labels)
+            labels = np.asarray(labels)
+            if labels.ndim == 1:
+                self.labels = np.reshape(labels, (self.size, 1))
+            else:
+                self.labels = labels
+            self.labels_shape = list(self.labels.shape[1:])
+            self.labels_ndim = len(self.labels_shape)
+        else:
+            self.labels = None
+            self.labels_shape = None
+            self.labels_ndim = None
+
+        self.current_positives = []
+        self.current_negatives = []
+        self.init = True
+
+    @check_initialization
+    def split(self, train_size, val_size, test_size, shuffle):
+        """Split dataset to train, validation and test set."""
+        train_set, val_set, test_set = super(TFTripletset, self).split(
+            train_size,
+            val_size,
+            test_size,
+            shuffle)
+        if train_set is not None:
+            train_set = TFTripletSequence(data=train_set.data,
+                                          labels=train_set.labels.flatten())
+            train_set.set_batch_size(self.batch_size,
+                                     self.batch_positives_count,
+                                     self.max_sequence_length)
+        if val_set is not None:
+            val_set = TFTripletSequence(data=val_set.data,
+                                        labels=val_set.labels.flatten())
+            val_set.set_batch_size(self.batch_size,
+                                   self.batch_positives_count,
+                                   self.max_sequence_length)
+        if test_set is not None:
+            test_set = TFTripletSequence(data=test_set.data,
+                                         labels=test_set.labels.flatten())
+            test_set.set_batch_size(self.batch_size,
+                                    self.batch_positives_count,
+                                    self.max_sequence_length)
+        return train_set, val_set, test_set
+
+    @check_initialization
+    def set_batch_size(self, batch_size, batch_positives_count, max_sequence_length):
+        """Set batch size and positives count per batch."""
+        assert max_sequence_length > 0, \
+            '''Maximal sequence length should be greater than zero:
+            max_sequence_length = %s''' % max_sequence_length
+
+        super(TFTripletSequence, self).set_batch_size(batch_size, batch_positives_count)
+        self.max_sequence_length = int(max_sequence_length)
+
+    @check_initialization
+    def next_batch(self):
+        """Get next batch."""
+        def update_current_positives_negatives():
+            labels = self.labels.flatten()
+            labels_counts = np.bincount(labels)
+            positive_keys = np.where(labels_counts >= self.batch_positives_count)[0]
+            rand_pos_key = positive_keys[np.random.randint(0, len(positive_keys))]
+
+            def random_sample(data, count):
+                indexes = np.arange(len(data))
+                rand_indexes = np.random.choice(indexes, count, replace=False)
+                return data[rand_indexes]
+
+            # Take positive samples
+            self.current_positives = random_sample(self.data[labels == rand_pos_key],
+                                                   self.batch_positives_count)
+
+            # Take negative samples
+            self.current_negatives = random_sample(self.data[labels != rand_pos_key],
+                                                   self.batch_negatives_count)
+
+        def get_next_sequences(data):
+            sequences = []
+            for data_sequence in data:
+                first = self.batch_num * self.max_sequence_length
+                last = (self.batch_num + 1) * self.max_sequence_length
+                next_sequence = data_sequence[first:last]
+                if len(next_sequence) > 0:
+                    sequence = np.zeros([self.max_sequence_length] + list(self.data_shape[1:]))
+                    sequence[:len(next_sequence)] = next_sequence
+                    sequences.append(sequence)
+            return np.asarray(sequences)
+
+        def get_positives_negatives():
+            positives = get_next_sequences(self.current_positives)
+            negatives = get_next_sequences(self.current_negatives)
+            return positives, negatives
+
+        # Get valid positives and negatives
+        positives, negatives = get_positives_negatives()
+        while len(positives) < self.batch_positives_count or len(negatives) == 0:
+            self.batch_num = 0
+            update_current_positives_negatives()
+            positives, negatives = get_positives_negatives()
+
+        # Create batch
+        batch_data = np.vstack([positives, negatives])
+        batch_labels = np.append(np.zeros(len(positives)),
+                                 np.ones(len(negatives)))
+        self.batch_num += 1
         return TFBatch(data=batch_data, labels=batch_labels)
 
 class TFEmbedding(TFNeuralNetwork):
