@@ -12,6 +12,28 @@ if include_dir not in sys.path:
     sys.path.append(include_dir)
 from tensorflow_oop.neural_network import *
 
+
+def check_triplets_data_labels(function):
+    """Decorator for check triplets data and labels."""
+    def wrapper(self, data, labels):
+        assert data is not None and labels is not None, \
+            '''Data and labels should be passed:
+            data = %s, labels = %s''' % (data, labels)
+
+        len_flatten_labels = len(np.asarray(labels).flatten())
+        len_labels = len(labels)
+        assert len_flatten_labels == len_labels, \
+            '''Flatten labels should be the same length:
+            len(flatten_labels) = %s, len(labels) = %s''' % \
+            (len_flatten_labels, len_labels)
+
+        assert len(data) == len(labels), \
+            '''Data and labels should be the same length:
+            len(data) = %s, len(labels) = %s''' % (len(data), len(labels))
+        return function(self, data, labels)
+    return wrapper
+
+
 class TFTripletset(TFDataset):
 
     """
@@ -21,39 +43,10 @@ class TFTripletset(TFDataset):
     __slots__ = TFDataset.__slots__ + ['batch_positives_count',
                                        'batch_negatives_count']
 
+    @check_triplets_data_labels
     def initialize(self, data, labels):
         """Set data and labels."""
-        assert data is not None and labels is not None, \
-            '''Data and labels should be passed:
-            data = %s, labels = %s''' % (data, labels)
-
-        ndim = np.asarray(labels).ndim
-        assert ndim == 1, \
-            '''Labels should be 1D dimension: labels.ndim = %s''' % ndim
-
         super(TFTripletset, self).initialize(data=data, labels=labels)
-
-    @check_initialization
-    def split(self, train_size, val_size, test_size, shuffle):
-        """Split dataset to train, validation and test set."""
-        train_set, val_set, test_set = super(TFTripletset, self).split(
-            train_size,
-            val_size,
-            test_size,
-            shuffle)
-        if train_set is not None:
-            train_set = TFTripletset(data=train_set.data,
-                                     labels=train_set.labels.flatten())
-            train_set.set_batch_size(self.batch_size, self.batch_positives_count)
-        if val_set is not None:
-            val_set = TFTripletset(data=val_set.data,
-                                   labels=val_set.labels.flatten())
-            val_set.set_batch_size(self.batch_size, self.batch_positives_count)
-        if test_set is not None:
-            test_set = TFTripletset(data=test_set.data,
-                                    labels=test_set.labels.flatten())
-            test_set.set_batch_size(self.batch_size, self.batch_positives_count)
-        return train_set, val_set, test_set
 
     @check_initialization
     def set_batch_size(self, batch_size, batch_positives_count):
@@ -108,19 +101,9 @@ class TFTripletSequence(TFTripletset):
                                           'current_negatives',
                                           'max_sequence_length']
 
+    @check_triplets_data_labels
     def initialize(self, data, labels):
         """Set data and labels."""
-        assert data is not None and labels is not None, \
-            '''Data and labels should be passed:
-            data = %s, labels = %s''' % (data, labels)
-
-        ndim = np.asarray(labels).ndim
-        assert ndim == 1, \
-            '''Labels should be 1D dimension: labels.ndim = %s''' % ndim
-
-        assert len(data) == len(labels), \
-            '''Data and labels should be the same length:
-            len(data) = %s, len(labels) = %s''' % (len(data), len(labels))
 
         # Processing data
         if data is not None:
@@ -155,34 +138,6 @@ class TFTripletSequence(TFTripletset):
         self.current_positives = []
         self.current_negatives = []
         self.init = True
-
-    @check_initialization
-    def split(self, train_size, val_size, test_size, shuffle):
-        """Split dataset to train, validation and test set."""
-        train_set, val_set, test_set = super(TFTripletset, self).split(
-            train_size,
-            val_size,
-            test_size,
-            shuffle)
-        if train_set is not None:
-            train_set = TFTripletSequence(data=train_set.data,
-                                          labels=train_set.labels.flatten())
-            train_set.set_batch_size(self.batch_size,
-                                     self.batch_positives_count,
-                                     self.max_sequence_length)
-        if val_set is not None:
-            val_set = TFTripletSequence(data=val_set.data,
-                                        labels=val_set.labels.flatten())
-            val_set.set_batch_size(self.batch_size,
-                                   self.batch_positives_count,
-                                   self.max_sequence_length)
-        if test_set is not None:
-            test_set = TFTripletSequence(data=test_set.data,
-                                         labels=test_set.labels.flatten())
-            test_set.set_batch_size(self.batch_size,
-                                    self.batch_positives_count,
-                                    self.max_sequence_length)
-        return train_set, val_set, test_set
 
     @check_initialization
     def set_batch_size(self, batch_size, batch_positives_count, max_sequence_length):

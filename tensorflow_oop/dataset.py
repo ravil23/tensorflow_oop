@@ -208,7 +208,7 @@ class TFDataset(object):
 
         # Generate training set
         if train_size > 0:
-            train_set = TFDataset()
+            train_set = self.__class__()
             train_set.copy(self)
             if self.data is not None:
                 data = self.data[indexes[:train_size]]
@@ -224,7 +224,7 @@ class TFDataset(object):
 
         # Generate validation set
         if val_size > 0:
-            val_set = TFDataset()
+            val_set = self.__class__()
             val_set.copy(self)
             if self.data is not None:
                 data = self.data[indexes[train_size:train_size + val_size]]
@@ -240,7 +240,7 @@ class TFDataset(object):
 
         # Generate testing set
         if test_size > 0:
-            test_set = TFDataset()
+            test_set = self.__class__()
             test_set.copy(self)
             if self.data is not None:
                 data = self.data[indexes[-test_size:]]
