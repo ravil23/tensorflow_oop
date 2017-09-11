@@ -190,7 +190,8 @@ class TFTripletSequence(TFTripletset):
 
         # Get valid positives and negatives
         positives, negatives = get_positives_negatives()
-        while len(positives) < self.batch_positives_count or len(negatives) == 0:
+        while len(positives) < self.batch_positives_count or \
+              len(negatives) < self.batch_negatives_count:
             self.batch_num = 0
             update_current_positives_negatives()
             positives, negatives = get_positives_negatives()
@@ -200,7 +201,9 @@ class TFTripletSequence(TFTripletset):
         batch_labels = np.append(np.zeros(len(positives)),
                                  np.ones(len(negatives)))
         self.batch_num += 1
-        return TFBatch(data=batch_data, labels=batch_labels)
+        return TFBatch(data=batch_data,
+                       labels=batch_labels,
+                       reset_state=self.batch_num == 1)
 
 class TFEmbedding(TFNeuralNetwork):
 
