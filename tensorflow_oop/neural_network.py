@@ -14,21 +14,10 @@ include_dir = os.path.join(script_dir, '../')
 if include_dir not in sys.path:
     sys.path.append(include_dir)
 from tensorflow_oop.dataset import *
+from tensorflow_oop.decorators import *
 
 # Set logging level.
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
-def check_inputs_values(function):
-    """Decorator for check corresponding inputs values."""
-    def wrapper(self, inputs_values, *args, **kwargs):
-        new_shape = np.asarray(np.asarray(inputs_values).shape[1:])
-        cur_shape = np.asarray(self.inputs_shape)
-        assert np.all(new_shape == cur_shape), \
-            '''Inputs values shape should be correspond to model inputs shape:
-            inputs_values.shape = %s, self.inputs_shape = %s''' \
-            % (inputs_values.shape, self.inputs_shape) 
-        return function(self, inputs_values=inputs_values, *args, **kwargs)
-    return wrapper
 
 class TFNeuralNetwork(object):
 
@@ -282,6 +271,7 @@ class TFNeuralNetwork(object):
         return loss
 
     @check_initialization
+    @check_fit_arguments
     def fit(self,
             train_set,
             epoch_count=None,
@@ -301,92 +291,24 @@ class TFNeuralNetwork(object):
             epoch_count -- training epochs count
             iter_count -- training iterations count
             optimizer -- tensorflow optimizer object
-            learning_rate -- initial gradient descent step
+            learning_rate -- initial gradient descent step or tensor
             val_set -- dataset for validation
             summarizing_period -- iterations count between summarizing
             logging_period -- iterations count between logging to stdout
             checkpoint_period -- iterations count between saving checkpoint
             evaluation_period -- iterations count between evaluation
+            max_gradient_norm -- maximal gradient norm for clipping
 
         """
-        assert learning_rate > 0, \
-            '''Learning rate should be greater than zero:
-            learning_rate = %s''' % learning_rate
-
-        assert epoch_count is not None or iter_count is not None, \
-            '''Epoch or iter count should be passed:
-            epoch_count = %s, iter_count = %s''' \
-            % (epoch_count, iter_count)
-
-        if epoch_count is not None:
-            assert epoch_count > 0, \
-                '''Epoch count should be greater than zero:
-                epoch_count = %s''' % epoch_count
-            epoch_count = int(epoch_count)
-        else:
-            assert iter_count is not None, \
-                '''Iteration count should be passed if epoch count is None:
-                iter_count = %s, epoch_count = %s''' \
-                % (iter_count, epoch_count)
-
-        if iter_count is not None:
-            assert iter_count > 0, \
-                '''Iteration count should be greater than zero:
-                iter_count = %s''' % iter_count
-            iter_count = int(iter_count)
-
-        if summarizing_period is not None:
-            assert summarizing_period > 0, \
-                '''Summarizing period should be greater than zero:
-                summarizing_period = %s''' % summarizing_period
-            summarizing_period = int(summarizing_period)
-
-        if logging_period is not None:
-            assert logging_period > 0, \
-                '''Logging period should be greater than zero:
-                logging_period = %s''' % logging_period
-            logging_period = int(logging_period)
-
-        if checkpoint_period is not None:
-            assert checkpoint_period > 0, \
-                '''Checkpoint period should be greater than zero:
-                checkpoint_period = %s''' % checkpoint_period
-            checkpoint_period = int(checkpoint_period)
-
-        if evaluation_period is not None:
-            assert evaluation_period > 0, \
-                '''Evaluation period should be greater than zero:
-                evaluation_period = %s''' % evaluation_period
-            evaluation_period = int(evaluation_period)
-
-        assert isinstance(train_set, TFDataset), \
-            '''Training set should be object of TFDataset type:
-            type(train_set) = %s''' % type(train_set)
-
-        assert train_set.init, \
-            '''Training set should be initialized:
-            train_set.init = %s''' % train_set.init
-
-        if val_set is not None:
-            assert(isinstance(val_set, TFDataset)), \
-                '''Validation set should be object of TFDataset type:
-                type(val_set) = %s''' % type(val_set)
-
-            assert val_set.init, \
-                '''Validation set should be initialized:
-                val_set.init = %s''' % val_set.init
+        print('Start training...')
+        start_fit_time = time.time()
 
         # Get actual iter and epoch count
-        if epoch_count is not None:
-            iter_count_by_epoch = (train_set.size * epoch_count) // train_set.batch_size
-            if train_set.size % train_set.batch_size != 0:
-                iter_count_by_epoch += 1
-            if iter_count is not None:
-                iter_count = min(iter_count, iter_count_by_epoch)
-            else:
-                iter_count = iter_count_by_epoch
-        else:
-            epoch_count = (iter_count * train_set.batch_size) // train_set.size
+        iter_count, epoch_count = self._get_actual_iter_epoch_count(
+            iter_count,
+            epoch_count,
+            train_set.size,
+            train_set.batch_size)
 
         # Global iter step and epoch number
         iteration = self.global_step.eval(session=self.sess)
@@ -399,101 +321,34 @@ class TFNeuralNetwork(object):
             print('Current iteration is equal to iteration count.')
             return
 
-        print('Start training iteration...')
-        start_fit_time = time.time()
-
         # Checkpoint configuration
         checkpoint_name = 'fit-checkpoint'
         checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
 
-        if not self.loaded:
-            optimizer_op = optimizer(learning_rate)
-
-            # Calculate gradients
-            tvars = tf.trainable_variables()
-            gradients = tf.gradients(self.loss, tvars)
-
-            # Add tvars metric
-            flatten_tvars = []
-            for tvar in tvars:
-                flatten_tvars.append(tf.reshape(tvar, [-1,]))
-            concat_tvars = tf.concat(flatten_tvars, 0,
-                                     name='all_tvars')
-            self.add_metric('all_tvars',
-                            concat_tvars,
-                            summary_type=tf.summary.histogram,
-                            collections=['batch_train'])
-
-            # Add gradients metric
-            flatten_gradients = []
-            for gradient in gradients:
-                flatten_gradients.append(tf.reshape(gradient, [-1,]))
-            concat_gradients = tf.concat(flatten_gradients, 0,
-                                         name='all_gradients')
-            self.add_metric('all_gradients',
-                            concat_gradients,
-                            summary_type=tf.summary.histogram,
-                            collections=['batch_train'])
-
-            # Gradient clipping if necessary
-            if max_gradient_norm is not None:
-                # Calculate clipping gradients
-                clip_gradients, gradient_norm = tf.clip_by_global_norm(gradients, 
-                                                                       max_gradient_norm)
-                
-                # Add clipping gradients metric
-                flatten_clip_gradients = []
-                for clip_gradient in clip_gradients:
-                    flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
-                concat_clip_gradients = tf.concat(flatten_clip_gradients, 0,
-                                                  name='all_clip_gradients')
-                self.add_metric('all_clip_gradients',
-                                concat_clip_gradients,
-                                summary_type=tf.summary.histogram,
-                                collections=['batch_train'])
-                self.add_metric('gradient_norm',
-                                gradient_norm,
-                                summary_type=tf.summary.scalar,
-                                collections=['batch_train'])
-
-                # Add to the Graph the Ops that apply gradients
-                train_op = optimizer_op.apply_gradients(zip(clip_gradients, tvars),
-                                                        global_step=self.global_step,
-                                                        name='train_op')
-            else:
-                # Add to the Graph the Ops that minimize loss
-                train_op = optimizer_op.minimize(self.loss,
-                                                 global_step=self.global_step,
-                                                 name='train_op')
-
-            # Run the Op to initialize the variables
-            self.sess.run(tf.global_variables_initializer())
-        else:
-            train_op = self.sess.graph.get_operation_by_name('train_op')
+        # Get training operation
+        train_op = self._get_train_op(optimizer, learning_rate, max_gradient_norm)
 
         # Print training options
-        def print_options():
-            if epoch_count is not None:
-                print('%20s: %s' % ('epoch_count', epoch_count))
-            print('%20s: %s' % ('iter_count', iter_count))
-            print('%20s: %s' % ('optimizer', optimizer))
-            print('%20s: %s' % ('learning_rate', learning_rate))
-            print('%20s: %s' % ('train_batch_size', train_set.batch_size))
-            if val_set is not None:
-                print('%20s: %s' % ('val_batch_size', val_set.batch_size))
-            print('%20s: %s' % ('summarizing_period', summarizing_period))
-            print('%20s: %s' % ('logging_period', logging_period))
-            print('%20s: %s' % ('checkpoint_period', checkpoint_period))
-            print('%20s: %s' % ('evaluation_period', evaluation_period))
-            if max_gradient_norm is not None:
-                print('%20s: %s' % ('max_gradient_norm', max_gradient_norm))
-            buf = ''
-            collections = sorted(list(self.metrics.keys()))
-            for collection in collections:
-                keys = list(self.metrics[collection].keys())
-                buf += '%30s: %s\n' % (collection, sorted(keys))
-            print('%20s:\n%s' % ('metrics', buf))
-        print_options()
+        if epoch_count is not None:
+            print('%20s: %s' % ('epoch_count', epoch_count))
+        print('%20s: %s' % ('iter_count', iter_count))
+        print('%20s: %s' % ('optimizer', optimizer))
+        print('%20s: %s' % ('learning_rate', learning_rate))
+        print('%20s: %s' % ('train_batch_size', train_set.batch_size))
+        if val_set is not None:
+            print('%20s: %s' % ('val_batch_size', val_set.batch_size))
+        print('%20s: %s' % ('summarizing_period', summarizing_period))
+        print('%20s: %s' % ('logging_period', logging_period))
+        print('%20s: %s' % ('checkpoint_period', checkpoint_period))
+        print('%20s: %s' % ('evaluation_period', evaluation_period))
+        if max_gradient_norm is not None:
+            print('%20s: %s' % ('max_gradient_norm', max_gradient_norm))
+        buf = ''
+        collections = sorted(list(self.metrics.keys()))
+        for collection in collections:
+            keys = list(self.metrics[collection].keys())
+            buf += '%30s: %s\n' % (collection, sorted(keys))
+        print('%20s:\n%s' % ('metrics', buf))
 
         # Start the training loop
         iter_times = []
@@ -522,21 +377,16 @@ class TFNeuralNetwork(object):
             # Write the summaries periodically
             if iteration % summarizing_period == 0 or iteration == iter_count:
                 # Update the events file with training summary on batch
-                summary_str = self.sess.run(tf.summary.merge_all('batch_train'),
-                                            feed_dict=feed_dict)
-                self.summary_writer.add_summary(summary_str, iteration)
+                self._write_summaries('batch_train', feed_dict, iteration)
 
                 # Update the events file with validation summary on batch
                 if val_set is not None:
                     val_batch = val_set.next_batch()
-                    summary_str = self.sess.run(
-                        tf.summary.merge_all('batch_validation'),
-                        feed_dict={
-                            self.inputs: val_batch.data,
-                            self.targets: val_batch.labels,
-                        }
-                    )
-                    self.summary_writer.add_summary(summary_str, iteration)
+                    val_feed_dict={
+                        self.inputs: val_batch.data,
+                        self.targets: val_batch.labels,
+                    }
+                    self._write_summaries('batch_validation', val_feed_dict, iteration)
 
             # Print an overview periodically
             if iteration % logging_period == 0 or iteration == iter_count:
@@ -566,31 +416,18 @@ class TFNeuralNetwork(object):
                 print('Evaluation...')
 
                 # Eval on training set
-                start_evaluation_time = time.time()
-                metrics = self.evaluate(train_set, 'eval_train', iteration)
-                if len(metrics) > 0:
-                    metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
-                    duration = time.time() - start_evaluation_time
-                    format_string = 'Evaluation on [training   set]:   %s   [%.3f sec]'
-                    print(format_string % ('   '.join(metrics_list),
-                                           duration))
+                self.evaluate_and_log(train_set, 'eval_train', iteration)
 
                 # Eval on validation set if necessary
                 if val_set is not None:
-                    start_evaluation_time = time.time()
-                    metrics = self.evaluate(val_set, 'eval_validation', iteration)
-                    if len(metrics) > 0:
-                        metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
-                        duration = time.time() - start_evaluation_time
-                        format_string = 'Evaluation on [validation set]:   %s   [%.3f sec]'
-                        print(format_string % ('   '.join(metrics_list),
-                                               duration))
+                    self.evaluate_and_log(val_set, 'eval_validation', iteration)
 
         self.summary_writer.flush()
         total_time = time.time() - start_fit_time
         print('Finish training iteration (total time %.3f sec).\n' % total_time)
 
     @check_initialization
+    @check_evaluate_arguments
     def evaluate(self, data, collection='eval_test', iteration=None):
         """Evaluate model.
 
@@ -602,39 +439,12 @@ class TFNeuralNetwork(object):
                                              'eval_train',
                                              'eval_validation',
                                              'eval_test']
+            iteration -- training step number
 
         Return:
             result -- metrics dictionary
 
         """
-        assert collection in ['batch_train',
-                              'batch_validation',
-                              'log_train',
-                              'eval_train',
-                              'eval_validation',
-                              'eval_test'], \
-            '''Collections should be only from list
-            ['batch_train',
-             'batch_validation',
-             'log_train',
-             'eval_train',
-             'eval_validation',
-             'eval_test']:
-            collection = %s''' % collection
-
-        assert isinstance(data, TFDataset) or isinstance(data, TFBatch), \
-            '''Argument should be object of TFDataset or TFBatch type:
-            type(data) = %s''' % type(data)
-
-        if isinstance(data, TFDataset):
-            assert data.init, \
-                '''Dataset should be initialized:
-                data.init = %s''' % data.init
-
-        if isinstance(data, TFBatch):
-            assert hasattr(data, 'data') and hasattr(data, 'labels'), \
-                '''Batch should contain attributes \'data\' and \'labels\'.'''
-
         result = {}
         if len(self.metrics[collection]) > 0:
             # Calculate metrics values
@@ -650,11 +460,39 @@ class TFNeuralNetwork(object):
 
             # Update the events file with evaluation summary
             if iteration is not None:
-                summary_str = self.sess.run(tf.summary.merge_all(collection),
-                                            feed_dict=feed_dict)
-                self.summary_writer.add_summary(summary_str, iteration)
+                self._write_summaries(collection, feed_dict, iteration)
 
         return result
+
+    @check_initialization
+    @check_evaluate_arguments
+    def evaluate_and_log(self, data, collection='eval_test', iteration=None):
+        """Evaluate model.
+
+        Arguments:
+            data -- batch or dataset of inputs
+            collection -- string value from ['batch_train',
+                                             'batch_validation',
+                                             'log_train',
+                                             'eval_train',
+                                             'eval_validation',
+                                             'eval_test']
+            iteration -- training step number
+
+        Return:
+            metrics -- metrics dictionary
+
+        """
+        start_evaluation_time = time.time()
+        metrics = self.evaluate(data, collection, iteration)
+        if len(metrics) > 0:
+            metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
+            duration = time.time() - start_evaluation_time
+            format_string = 'Evaluation on [%s]:   %s   [%.3f sec]'
+            print(format_string % (collection,
+                                   '   '.join(metrics_list),
+                                   duration))
+        return metrics
 
     @check_initialization
     def save(self, filename, global_step=None):
@@ -723,3 +561,120 @@ class TFNeuralNetwork(object):
                 else:
                     string += '%20s: %s\n' % (attr, getattr(self, attr))
         return string[:-1]
+
+    def _get_actual_iter_epoch_count(self, iter_count, epoch_count, dataset_size, batch_size):
+        """Actualize iteration and epoch count.
+
+        Arguments:
+            iter_count -- iteration count (None if unknown)
+            epoch_count -- epoch count (None if unknown)
+            dataset_size -- length of dataset
+            batch_size -- length of batch
+
+        Return:
+            iter_count -- actual iteration count
+            epoch_count -- actual epoch count
+
+        """
+        if epoch_count is not None:
+            iter_count_by_epoch = (dataset_size * epoch_count) // batch_size
+            if dataset_size % batch_size != 0:
+                iter_count_by_epoch += 1
+            if iter_count is not None:
+                iter_count = min(iter_count, iter_count_by_epoch)
+            else:
+                iter_count = iter_count_by_epoch
+        else:
+            epoch_count = (iter_count * batch_size) // dataset_size
+        return iter_count, epoch_count
+
+    def _get_train_op(self, optimizer, learning_rate, max_gradient_norm):
+        """Get training operation.
+
+        Arguments:
+            optimizer -- tensorflow optimizer object
+            learning_rate -- initial gradient descent step
+            max_gradient_norm -- maximal gradient norm for clipping
+
+        Return:
+            trin_op -- training operation
+
+        """
+        if not self.loaded:
+            optimizer_op = optimizer(learning_rate)
+
+            # Calculate gradients
+            tvars = tf.trainable_variables()
+            gradients = tf.gradients(self.loss, tvars)
+
+            # Add tvars metric
+            flatten_tvars = []
+            for tvar in tvars:
+                flatten_tvars.append(tf.reshape(tvar, [-1,]))
+            concat_tvars = tf.concat(flatten_tvars, 0,
+                                     name='all_tvars')
+            self.add_metric('all_tvars',
+                            concat_tvars,
+                            summary_type=tf.summary.histogram,
+                            collections=['batch_train'])
+
+            # Add gradients metric
+            flatten_gradients = []
+            for gradient in gradients:
+                flatten_gradients.append(tf.reshape(gradient, [-1,]))
+            concat_gradients = tf.concat(flatten_gradients, 0,
+                                         name='all_gradients')
+            self.add_metric('all_gradients',
+                            concat_gradients,
+                            summary_type=tf.summary.histogram,
+                            collections=['batch_train'])
+
+            # Gradient clipping if necessary
+            if max_gradient_norm is not None:
+                # Calculate clipping gradients
+                clip_gradients, gradient_norm = tf.clip_by_global_norm(gradients, 
+                                                                       max_gradient_norm)
+                
+                # Add clipping gradients metric
+                flatten_clip_gradients = []
+                for clip_gradient in clip_gradients:
+                    flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
+                concat_clip_gradients = tf.concat(flatten_clip_gradients, 0,
+                                                  name='all_clip_gradients')
+                self.add_metric('all_clip_gradients',
+                                concat_clip_gradients,
+                                summary_type=tf.summary.histogram,
+                                collections=['batch_train'])
+                self.add_metric('gradient_norm',
+                                gradient_norm,
+                                summary_type=tf.summary.scalar,
+                                collections=['batch_train'])
+
+                # Add to the Graph the Ops that apply gradients
+                train_op = optimizer_op.apply_gradients(zip(clip_gradients, tvars),
+                                                        global_step=self.global_step,
+                                                        name='train_op')
+            else:
+                # Add to the Graph the Ops that minimize loss
+                train_op = optimizer_op.minimize(self.loss,
+                                                 global_step=self.global_step,
+                                                 name='train_op')
+
+            # Run the Op to initialize the variables
+            self.sess.run(tf.global_variables_initializer())
+        else:
+            train_op = self.sess.graph.get_operation_by_name('train_op')
+        return train_op
+
+    def _write_summaries(self, collection, feed_dict, iteration):
+        """Write summaries to TensorBoard.
+
+        Arguments:
+            collection -- summaries collection name
+            feed_dict -- dictionary of placeholder values
+            iteration -- training step number
+
+        """
+        summary_str = self.sess.run(tf.summary.merge_all(collection),
+                                    feed_dict=feed_dict)
+        self.summary_writer.add_summary(summary_str, iteration)

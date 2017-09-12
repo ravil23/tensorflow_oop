@@ -11,27 +11,7 @@ include_dir = os.path.join(script_dir, '../')
 if include_dir not in sys.path:
     sys.path.append(include_dir)
 from tensorflow_oop.neural_network import *
-
-
-def check_triplets_data_labels(function):
-    """Decorator for check triplets data and labels."""
-    def wrapper(self, data, labels):
-        assert data is not None and labels is not None, \
-            '''Data and labels should be passed:
-            data = %s, labels = %s''' % (data, labels)
-
-        len_flatten_labels = len(np.asarray(labels).flatten())
-        len_labels = len(labels)
-        assert len_flatten_labels == len_labels, \
-            '''Flatten labels should be the same length:
-            len(flatten_labels) = %s, len(labels) = %s''' % \
-            (len_flatten_labels, len_labels)
-
-        assert len(data) == len(labels), \
-            '''Data and labels should be the same length:
-            len(data) = %s, len(labels) = %s''' % (len(data), len(labels))
-        return function(self, data, labels)
-    return wrapper
+from tensorflow_oop.decorators import *
 
 
 class TFTripletset(TFDataset):
@@ -334,7 +314,7 @@ class TFEmbedding(TFNeuralNetwork):
                 if exclude_hard:
                     mask = tf.logical_and(mask, raw_loss < margin)
                 valid_loss = raw_loss * tf.cast(mask, dtype=tf.float32)
-                return valid_loss
+                return valid_loss, raw_loss
             return loss
 
         # Calculate distances
@@ -346,13 +326,14 @@ class TFEmbedding(TFNeuralNetwork):
         neg_dist = TFEmbedding.squared_distance(embedding_pos, embedding_neg)
 
         # Calculate losses
-        losses = tf.map_fn(fn=triplet_loss(margin, exclude_hard),
+        losses, raw_losses = tf.map_fn(fn=triplet_loss(margin, exclude_hard),
                            elems=(pos_dist, neg_dist),
-                           dtype=tf.float32)
+                           dtype=(tf.float32, tf.float32))
 
         # Filter zero losses
-        mask = losses > 0
-        valid_losses = tf.boolean_mask(losses, mask)
+        valid_losses = tf.boolean_mask(losses, losses > 0)
+        small_losses = tf.boolean_mask(raw_losses, raw_losses <= 0)
+        out_margin_losses = tf.boolean_mask(raw_losses, raw_losses >= margin)
 
         # Add triplets count metric
         self.add_metric('all_triplets_count',
@@ -361,6 +342,14 @@ class TFEmbedding(TFNeuralNetwork):
                         collections=['batch_train', 'batch_validation'])
         self.add_metric('valid_triplets_count',
                         tf.size(valid_losses, name='valid_triplets_count'),
+                        summary_type=tf.summary.scalar,
+                        collections=['batch_train', 'batch_validation'])
+        self.add_metric('out_triplets_count',
+                        tf.size(small_losses, name='out_triplets_count'),
+                        summary_type=tf.summary.scalar,
+                        collections=['batch_train', 'batch_validation'])
+        self.add_metric('in_triplets_count',
+                        tf.size(out_margin_losses, name='in_triplets_count'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation'])
 
