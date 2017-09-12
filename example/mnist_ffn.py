@@ -55,8 +55,18 @@ def run(args):
                          hidden_size=args.hidden_size)
     print('%s\n' % model)
 
+    # Add learning rate decay
+    learning_rate = tf.train.exponential_decay(0.01, model.global_step, 1000, 0.97)
+    model.add_metric('learning_rate',
+                     learning_rate,
+                     tf.summary.scalar,
+                     ['batch_train'])
+
     # Fitting model
-    model.fit(train_set, epoch_count=args.epoch_count, val_set=val_set)
+    model.fit(train_set,
+              epoch_count=args.epoch_count,
+              val_set=val_set,
+              learning_rate=learning_rate)
 
     # Evaluation
     if train_set is not None:

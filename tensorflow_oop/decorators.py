@@ -42,8 +42,8 @@ def check_fit_arguments(function):
                 max_gradient_norm=None,
                 *args,
                 **kwargs):
-        assert learning_rate > 0, \
-            '''Learning rate should be greater than zero:
+        assert isinstance(learning_rate, tf.Tensor) or learning_rate > 0, \
+            '''Learning rate should be tensor or greater than zero:
             learning_rate = %s''' % learning_rate
 
         assert epoch_count is not None or iter_count is not None, \

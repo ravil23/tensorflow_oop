@@ -356,6 +356,7 @@ class TFEmbedding(TFNeuralNetwork):
         return tf.reduce_mean(valid_losses)
 
     @check_initialization
+    @check_fit_arguments
     def fit(self,
             train_set,
             epoch_count=None,
@@ -381,6 +382,7 @@ class TFEmbedding(TFNeuralNetwork):
             logging_period -- iterations count between logging to stdout
             checkpoint_period -- iterations count between saving checkpoint
             evaluation_period -- iterations count between evaluation
+            max_gradient_norm -- maximal gradient norm for clipping
 
         """
         assert isinstance(train_set, TFTripletset), \
