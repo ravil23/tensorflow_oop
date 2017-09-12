@@ -245,16 +245,15 @@ class TFEmbedding(TFNeuralNetwork):
                                                              embedding_neg)
 
         # Add centroid distance metric
-        self.add_metric('centroid_pos_dist',
-                        centroid_pos_dist,
+        self.add_metric(tf.identity(centroid_pos_dist, 'centroid_pos_dist'),
                         summary_type=tf.summary.histogram,
                         collections=['batch_train', 'batch_validation'])
-        self.add_metric('centroid_neg_dist',
+        self.add_metric(tf.identity(centroid_neg_dist, 'centroid_neg_dist'),
                         centroid_neg_dist,
                         summary_type=tf.summary.histogram,
                         collections=['batch_train', 'batch_validation'])
 
-        def max_centroid_fscore(pos_dist, neg_dist):
+        def max_fscore(pos_dist, neg_dist):
             """Centroid binary classification fscore."""
 
             def fscore_function(threshold):
@@ -277,8 +276,8 @@ class TFEmbedding(TFNeuralNetwork):
             return tf.reduce_max(fscores)
 
         # Add max centroid fscore metric
-        self.add_metric('max_centroid_fscore',
-                        max_centroid_fscore(centroid_pos_dist, centroid_neg_dist),
+        max_centroid_fscore = max_fscore(centroid_pos_dist, centroid_neg_dist)
+        self.add_metric(tf.identity(max_centroid_fscore, 'max_centroid_fscore'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation', 'log_train'])
 
@@ -305,16 +304,14 @@ class TFEmbedding(TFNeuralNetwork):
         margin = kwargs['margin']
         exclude_hard = kwargs['exclude_hard']
 
-        def triplet_loss(margin, exclude_hard):
+        def triplet_loss(margin):
             """Triplet loss function for a given anchor."""
             def loss(pos_neg_dist):
                 pos_dist, neg_dist = pos_neg_dist
                 raw_loss = tf.expand_dims(pos_dist, -1) - neg_dist + margin
                 mask = raw_loss > 0
-                if exclude_hard:
-                    mask = tf.logical_and(mask, raw_loss < margin)
                 valid_loss = raw_loss * tf.cast(mask, dtype=tf.float32)
-                return valid_loss, raw_loss
+                return valid_loss
             return loss
 
         # Calculate distances
@@ -326,30 +323,31 @@ class TFEmbedding(TFNeuralNetwork):
         neg_dist = TFEmbedding.squared_distance(embedding_pos, embedding_neg)
 
         # Calculate losses
-        losses, raw_losses = tf.map_fn(fn=triplet_loss(margin, exclude_hard),
+        losses = tf.map_fn(fn=triplet_loss(margin),
                            elems=(pos_dist, neg_dist),
-                           dtype=(tf.float32, tf.float32))
+                           dtype=tf.float32)
 
-        # Filter zero losses
-        valid_losses = tf.boolean_mask(losses, losses > 0)
-        small_losses = tf.boolean_mask(raw_losses, raw_losses <= 0)
-        out_margin_losses = tf.boolean_mask(raw_losses, raw_losses >= margin)
+        # Exclude hard losses if necessary
+        if exclude_hard:
+            valid_losses = tf.boolean_mask(losses, losses < margin)
+        else:
+            valid_losses = losses
+
+        # Calculate some metrics
+        small_losses = tf.boolean_mask(losses, losses == 0)
+        big_losses = tf.boolean_mask(losses, losses >= margin)
 
         # Add triplets count metric
-        self.add_metric('all_triplets_count',
-                        tf.size(losses, name='all_triplets_count'),
+        self.add_metric(tf.size(losses, name='all_triplets_count'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation'])
-        self.add_metric('valid_triplets_count',
-                        tf.size(valid_losses, name='valid_triplets_count'),
+        self.add_metric(tf.size(valid_losses, name='valid_triplets_count'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation'])
-        self.add_metric('out_triplets_count',
-                        tf.size(small_losses, name='out_triplets_count'),
+        self.add_metric(tf.size(small_losses, name='out_triplets_count'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation'])
-        self.add_metric('in_triplets_count',
-                        tf.size(out_margin_losses, name='in_triplets_count'),
+        self.add_metric(tf.size(big_losses, name='in_triplets_count'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation'])
 

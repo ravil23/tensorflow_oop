@@ -73,8 +73,7 @@ class TFClassifier(TFNeuralNetwork):
                                   name='accuracy')
 
         # Add accuracy metric
-        self.add_metric('accuracy',
-                        accuracy,
+        self.add_metric(accuracy,
                         summary_type=tf.summary.scalar,
                         collections=['batch_train',
                                      'batch_validation',

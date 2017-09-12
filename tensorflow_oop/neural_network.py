@@ -175,8 +175,7 @@ class TFNeuralNetwork(object):
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
 
         # Add loss metric
-        self.add_metric('loss',
-                        self.loss,
+        self.add_metric(self.loss,
                         summary_type=tf.summary.scalar,
                         collections=['batch_train',
                                      'batch_validation',
@@ -198,14 +197,12 @@ class TFNeuralNetwork(object):
         print('Finish initializing model.')
 
     def add_metric(self,
-                   key,
                    metric,
                    summary_type,
                    collections):
         """Add logging and summarizing metric.
 
         Arguments:
-            key -- string name
             metric -- tensorflow operation
             summary_type -- tensorflow summary type (e.g. tf.summary.scalar)
             collections -- list of strings from ['batch_train',
@@ -216,9 +213,9 @@ class TFNeuralNetwork(object):
                                                  'eval_test']
 
         """
-        assert isinstance(key, str), \
-            '''Key should be string format:
-            type(key) = %s''' % type(key)
+        assert isinstance(metric, tf.Tensor), \
+            '''Metric should be tf.Tensor:
+            type(metric) = %s''' % type(metric)
         for collection in collections:
             assert collection in ['batch_train',
                                   'batch_validation',
@@ -234,6 +231,8 @@ class TFNeuralNetwork(object):
                  'eval_validation',
                  'eval_test']:
                 collection = %s''' % collection
+        name = metric.name
+        key = str(name[name.rfind('/') + 1 : name.rfind(':')])
         for collection in collections:
             summary_type(collection + '/' + key,
                          metric,
@@ -613,8 +612,7 @@ class TFNeuralNetwork(object):
                 flatten_tvars.append(tf.reshape(tvar, [-1,]))
             concat_tvars = tf.concat(flatten_tvars, 0,
                                      name='all_tvars')
-            self.add_metric('all_tvars',
-                            concat_tvars,
+            self.add_metric(concat_tvars,
                             summary_type=tf.summary.histogram,
                             collections=['batch_train'])
 
@@ -624,8 +622,7 @@ class TFNeuralNetwork(object):
                 flatten_gradients.append(tf.reshape(gradient, [-1,]))
             concat_gradients = tf.concat(flatten_gradients, 0,
                                          name='all_gradients')
-            self.add_metric('all_gradients',
-                            concat_gradients,
+            self.add_metric(concat_gradients,
                             summary_type=tf.summary.histogram,
                             collections=['batch_train'])
 
@@ -641,12 +638,10 @@ class TFNeuralNetwork(object):
                     flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
                 concat_clip_gradients = tf.concat(flatten_clip_gradients, 0,
                                                   name='all_clip_gradients')
-                self.add_metric('all_clip_gradients',
-                                concat_clip_gradients,
+                self.add_metric(concat_clip_gradients,
                                 summary_type=tf.summary.histogram,
                                 collections=['batch_train'])
-                self.add_metric('gradient_norm',
-                                gradient_norm,
+                self.add_metric(tf.identity(gradient_norm, 'gradient_norm'),
                                 summary_type=tf.summary.scalar,
                                 collections=['batch_train'])
 

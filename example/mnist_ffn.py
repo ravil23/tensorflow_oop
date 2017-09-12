@@ -56,9 +56,12 @@ def run(args):
     print('%s\n' % model)
 
     # Add learning rate decay
-    learning_rate = tf.train.exponential_decay(0.01, model.global_step, 1000, 0.97)
-    model.add_metric('learning_rate',
-                     learning_rate,
+    learning_rate = tf.train.exponential_decay(0.01,
+                                               model.global_step,
+                                               1000,
+                                               0.97,
+                                               name='learning_rate')
+    model.add_metric(learning_rate,
                      tf.summary.scalar,
                      ['batch_train'])
 
