@@ -353,7 +353,7 @@ class TFEmbedding(TFNeuralNetwork):
                         summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation'])
 
-        return tf.reduce_mean(losses)
+        return tf.reduce_mean(valid_losses)
 
     @check_initialization
     def fit(self,
