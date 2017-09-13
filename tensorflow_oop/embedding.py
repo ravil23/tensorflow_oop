@@ -249,7 +249,6 @@ class TFEmbedding(TFNeuralNetwork):
                         summary_type=tf.summary.histogram,
                         collections=['batch_train', 'batch_validation'])
         self.add_metric(tf.identity(centroid_neg_dist, 'centroid_neg_dist'),
-                        centroid_neg_dist,
                         summary_type=tf.summary.histogram,
                         collections=['batch_train', 'batch_validation'])
 
@@ -334,22 +333,30 @@ class TFEmbedding(TFNeuralNetwork):
             valid_losses = losses
 
         # Calculate some metrics
-        small_losses = tf.boolean_mask(losses, losses == 0)
-        big_losses = tf.boolean_mask(losses, losses >= margin)
+        out_mask = losses <= 0
+        margin_mask = tf.logical_and(losses > 0, losses < margin)
+        in_mask = losses >= margin
 
         # Add triplets count metric
-        self.add_metric(tf.size(losses, name='all_triplets_count'),
+        all_triplets_count = tf.cast(tf.size(losses), tf.float32, name='all_triplets_count')
+        self.add_metric(all_triplets_count,
                         summary_type=tf.summary.scalar,
-                        collections=['batch_train', 'batch_validation'])
-        self.add_metric(tf.size(valid_losses, name='valid_triplets_count'),
+                        collections=['batch_train'])
+
+        out_triplets_count = tf.cast(tf.count_nonzero(out_mask), tf.float32) / all_triplets_count
+        self.add_metric(tf.identity(out_triplets_count, name='out_triplets_count'),
                         summary_type=tf.summary.scalar,
-                        collections=['batch_train', 'batch_validation'])
-        self.add_metric(tf.size(small_losses, name='out_triplets_count'),
+                        collections=['batch_train'])
+
+        margin_triplets_count = tf.cast(tf.count_nonzero(margin_mask), tf.float32) / all_triplets_count
+        self.add_metric(tf.identity(margin_triplets_count, name='margin_triplets_count'),
                         summary_type=tf.summary.scalar,
-                        collections=['batch_train', 'batch_validation'])
-        self.add_metric(tf.size(big_losses, name='in_triplets_count'),
+                        collections=['batch_train'])
+
+        in_triplets_count = tf.cast(tf.count_nonzero(in_mask), tf.float32) / all_triplets_count
+        self.add_metric(tf.identity(in_triplets_count, name='in_triplets_count'),
                         summary_type=tf.summary.scalar,
-                        collections=['batch_train', 'batch_validation'])
+                        collections=['batch_train'])
 
         return tf.reduce_mean(valid_losses)
 
