@@ -35,14 +35,16 @@ class TFBatch:
 class TFDataset(object):
 
     """
-    Dataset structure.
+    Dataset of features.
+    Data shape description:   [size, data_shape]
+    Labels shape description: [size, labels_shape]
     """
 
     __slots__ = ['init', 'size',
                  'data', 'data_shape', 'data_ndim',
                  'labels', 'labels_shape', 'labels_ndim',
                  'batch_size', 'batch_num',
-                 'normalized', 'normalization_mask',
+                 'normalized', 'normalization_global',
                  'normalization_mean', 'normalization_std']
 
     def __init__(self, data=None, labels=None):
@@ -73,39 +75,55 @@ class TFDataset(object):
 
         # Processing data
         if data is not None:
-            self.size = len(data)
-            data = np.asarray(data)
-            if data.ndim == 1:
-                self.data = np.reshape(data, (self.size, 1))
-            else:
-                self.data = data
-            self.data_shape = list(self.data.shape[1:])
-            self.data_ndim = len(self.data_shape)
+            self._set_data(data)
         else:
-            self.data = None
-            self.data_shape = None
-            self.data_ndim = None
-            self.normalized = None
-            self.normalization_mask = None
-            self.normalization_mean = None
-            self.normalization_std = None
+            self._reset_data()
 
         # Processing labels
         if labels is not None:
-            self.size = len(labels)
-            labels = np.asarray(labels)
-            if labels.ndim == 1:
-                self.labels = np.reshape(labels, (self.size, 1))
-            else:
-                self.labels = labels
-            self.labels_shape = list(self.labels.shape[1:])
-            self.labels_ndim = len(self.labels_shape)
+            self._set_labels(labels)
         else:
-            self.labels = None
-            self.labels_shape = None
-            self.labels_ndim = None
+            self._reset_labels()
 
         self.init = True
+
+    def _set_data(self, data):
+        """Update data value."""
+        self.size = len(data)
+        data = np.asarray(data)
+        if data.ndim == 1:
+            self.data = np.reshape(data, (self.size, 1))
+        else:
+            self.data = data
+        self.data_shape = list(self.data.shape[1:])
+        self.data_ndim = len(self.data_shape)
+
+    def _reset_data(self):
+        """Reset data to default value."""
+        self.data = None
+        self.data_shape = None
+        self.data_ndim = None
+        self.normalized = None
+        self.normalization_global = None
+        self.normalization_mean = None
+        self.normalization_std = None
+
+    def _set_labels(self, labels):
+        """Update labels value."""
+        self.size = len(labels)
+        labels = np.asarray(labels)
+        if labels.ndim == 1:
+            self.labels = np.reshape(labels, (self.size, 1))
+        else:
+            self.labels = labels
+        self.labels_shape = list(self.labels.shape[1:])
+        self.labels_ndim = len(self.labels_shape)
+
+    def _reset_labels(self):
+        """Reset labels to default value."""
+        self.labels = None
+        self.labels_shape = None
+        self.labels_ndim = None
 
     @check_initialization
     def shuffle(self):
@@ -325,71 +343,45 @@ class TFDataset(object):
             dataset.copy(self)
             dataset.initialize(data=sequences, labels=None)
 
-        # Update normalization mask
-        if self.normalization_mask is not None:
-            dataset.normalization_mask = [False] + self.normalization_mask
+        # Update normalization information
+        dataset.normalized = False
+        dataset.normalization_global = None
+        dataset.normalization_mean = None
+        dataset.normalization_std = None
 
         return dataset
 
     @check_initialization
-    def normalize(self, mask=None):
-        """
-        Normalize data to zero mean and one std by mask.
-        Where mask is boolean indicators corresponding to data dimensions.
-        If mask value is True, then feature with this dimension should be normalized.
-        """
+    def normalize(self, normalization_global):
+        """Normalize data to zero mean and one std."""
         assert self.data is not None, \
             '''Data field should be initialized: self.data = %s''' % self.data
 
         if self.normalized:
             return
 
-        if mask is not None:
-            assert len(mask) == self.data_ndim, \
-                '''Mask length should be equal to data dimensions count:
-                len(mask) = %s, self.data_ndim = %s''' \
-                % (len(mask), self.data_ndim)
-
-            for i in range(0, len(mask) - 1):
-                assert mask[i + 1] or not mask[i], \
-                    '''False elements should be before True elements:
-                    mask = %s''' % mask
-
-            assert mask[-1] == True, \
-                '''Last mask element should be True:
-                mask = %s''' % mask
-
-            # Reshape to array of features
-            data_shapearr = np.asarray(self.data_shape)
-            new_shape = [-1] + list(data_shapearr[mask])
-            reshaped_data = np.reshape(self.data, new_shape)
-
-            # Save normalisation properties
-            self.normalization_mask = list(mask)
-            self.normalization_mean = np.mean(reshaped_data, axis=0)
-            self.normalization_std = np.std(reshaped_data, axis=0)
-
-            # Reshape normalization properties for correct broadcasting
-            valid_shape = data_shapearr
-            valid_shape[np.logical_not(self.normalization_mask)] = 1
-            reshaped_mean = np.reshape(self.normalization_mean, valid_shape)
-            reshaped_std = np.reshape(self.normalization_std, valid_shape)
-
-            # Replace zero std with one
-            valid_std = reshaped_std
-            valid_std[reshaped_std == 0] = 1
+        if not normalization_global:
+            # Reshape to array of feature vectors
+            reshaped_data = np.reshape(self.data, [-1] + [np.sum(self.data_shape)])
+            reshaped_mean = np.mean(reshaped_data, axis=0)
+            reshaped_std = np.std(reshaped_data, axis=0)
 
             # Update dataset with normalized value
-            self.data = (self.data - reshaped_mean) / valid_std
+            normalized_data = (reshaped_data - reshaped_mean) / reshaped_std
+
+            # Correct data shape and save normalisation properties
+            self.data = np.reshape(normalized_data, [-1] + self.data_shape)
+            self.normalization_mean = np.reshape(reshaped_mean, self.data_shape)
+            self.normalization_std = np.reshape(reshaped_std, self.data_shape)
         else:
             # Save normalisation properties
-            self.normalization_mask = None
             self.normalization_mean = np.mean(self.data)
             self.normalization_std = np.std(self.data)
 
             # Update dataset with normalized value
             self.data = (self.data - self.normalization_mean) / self.normalization_std
 
+        self.normalization_global = normalization_global
         self.normalized = True
 
     @check_initialization
@@ -401,21 +393,15 @@ class TFDataset(object):
         if not self.normalized:
             return
 
-        if self.normalization_mask is not None:
-            data_shapearr = np.asarray(self.data_shape)
-
-            # Reshape for correct broadcasting
-            valid_shape = data_shapearr
-            valid_shape[np.logical_not(self.normalization_mask)] = 1
-            reshaped_mean = np.reshape(self.normalization_mean, valid_shape)
-            reshaped_std = np.reshape(self.normalization_std, valid_shape)
-
-            # Replace zero std with one 
-            valid_std = reshaped_std
-            valid_std[reshaped_std == 0] = 1
+        if self.normalization_global:
+            # Reshape normalization properties to vector
+            reshaped_data = np.reshape(self.data, [-1] + [np.sum(self.data_shape)])
+            reshaped_mean = np.reshape(self.normalization_mean, [-1])
+            reshaped_std = np.reshape(self.normalization_std, [-1])
 
             # Update dataset with unnormalized value
-            self.data = self.data*valid_std +  reshaped_mean
+            unnormalized_data = reshaped_data*reshaped_std +  reshaped_mean
+            self.data = np.reshape(unnormalized_data, [-1] + self.data_shape)
         else:
             # Update dataset with unnormalized value
             self.data =  self.data*self.normalization_std + self.normalization_mean
@@ -466,3 +452,32 @@ class TFDataset(object):
         if 'labels' in self.__slots__:
             string += "%s: \n%s\n" % ('labels', getattr(self, 'labels'))
         return string[:-1]
+
+class TFSequence(TFDataset):
+
+    """
+    Dataset of different length sequences of features.
+    Data shape description:   [size, sequence_length, data_shape]
+    Labels shape description: [size, labels_shape]
+    """
+
+    def _set_data(self, data):
+        """Update data value."""
+        unique_shapes = set([np.asarray(sequence).shape[1:] for sequence in data])
+        assert len(unique_shapes) == 1, \
+            '''All feature shapes in sequences should be equal:
+            unique_shapes = %s''' % unique_shapes
+        self.size = len(data)
+        self.data = np.array([np.asarray(elem) for elem in data])
+        self.data_shape = [None] + list(unique_shapes)[0]
+        self.data_ndim = len(self.data_shape)
+
+    @check_initialization
+    def normalize(self, normalization_global=False):
+        """Normalize data to zero mean and one std."""
+        raise Exception('Normalize function not implemented now!')
+
+    @check_initialization
+    def unnormalize(self):
+        """Unnormalize dataset to original from zero mean and one std."""
+        raise Exception('Unnormalize function not implemented now!')

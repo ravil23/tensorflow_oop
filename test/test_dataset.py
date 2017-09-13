@@ -62,10 +62,10 @@ class TestTFDataset(unittest.TestCase):
         self.assertEqual(self.empty.labels_ndim, 1)
         self.assertTrue(self.empty.init)
 
-        self.dataset3.normalize()
+        self.dataset3.normalize(True)
         self.dataset3.initialize(None, self.labels)
         self.assertEqual(self.dataset3.normalized, None)
-        self.assertEqual(self.dataset3.normalization_mask, None)
+        self.assertEqual(self.dataset3.normalization_global, None)
         self.assertEqual(self.dataset3.normalization_mean, None)
         self.assertEqual(self.dataset3.normalization_std, None)
 
@@ -244,49 +244,39 @@ class TestTFDataset(unittest.TestCase):
         self.assertEqual(seq.labels_ndim, 2)
 
     def test_normalize(self):
-        # Test without mask
+        # Test with global
         with self.assertRaises(AssertionError):
-            self.empty.normalize()
+            self.empty.normalize(True)
         with self.assertRaises(AssertionError):
-            self.dataset2.normalize()
-        self.dataset1.normalize()
+            self.dataset2.normalize(True)
+        self.dataset1.normalize(True)
         self.assertTrue(self.dataset1.normalized)
-        self.assertEqual(self.dataset1.normalization_mask, None)
+        self.assertTrue(self.dataset1.normalization_global)
         self.assertEqual(self.dataset1.normalization_mean, np.mean(self.data))
         self.assertEqual(self.dataset1.normalization_std, np.std(self.data))
         
         # Test with mask
         dataset = TFDataset(data=[[[1,2],[3,4]],[[5,6],[7,8]],[[9,10],[11,12]]])
-        with self.assertRaises(AssertionError):
-            dataset.normalize(mask=[True])
-        with self.assertRaises(AssertionError):
-            dataset.normalize(mask=[False, False])
-        with self.assertRaises(AssertionError):
-            dataset.normalize(mask=[True, False])
-        dataset.normalize(mask=[False, True])
+        dataset.normalize(False)
         self.assertTrue(dataset.normalized)
-        self.assertTrue(np.all(np.asarray(dataset.normalization_mask) == np.asarray([False, True])))
-        self.assertTrue(np.all(dataset.normalization_mean == np.asarray([np.mean([1,3,5,7,9,11]), np.mean([2,4,6,8,10,12])])))
-        self.assertTrue(np.all(dataset.normalization_std  == np.asarray([np.std([1,3,5,7,9,11]),  np.std([2,4,6,8,10,12])])))
-
-        self.dataset3.normalize(mask=[True])
-        self.assertTrue(self.dataset3.normalized)
-        self.assertTrue(np.all(np.asarray(self.dataset3.normalization_mask) == np.asarray([True])))
-        self.assertTrue(np.all(self.dataset3.normalization_mean == np.asarray([np.mean([1,3,5]), np.mean([2,4,6])])))
-        self.assertTrue(np.all(self.dataset3.normalization_std  == np.asarray([np.std([1,3,5]),  np.std([2,4,6])])))
+        self.assertFalse(dataset.normalization_global)
+        self.assertTrue(np.all(dataset.normalization_mean == np.asarray([[np.mean([1,5,9]), np.mean([2,6,10])],
+                                                                         [np.mean([3,7,11]), np.mean([4,8,12])]])))
+        self.assertTrue(np.all(dataset.normalization_std  == np.asarray([[np.std([1,5,9]), np.std([2,6,10])],
+                                                                         [np.std([3,7,11]), np.std([4,8,12])]])))
         
     def test_unnormalize(self):
         with self.assertRaises(AssertionError):
             self.empty.unnormalize()
-        self.dataset1.normalize()
+        self.dataset1.normalize(True)
         self.dataset1.unnormalize()
         self.assertFalse(self.dataset1.normalized)
-        self.assertTrue(np.all(self.dataset1.data == self.data))
+        self.assertTrue(np.sum(np.abs(self.dataset1.data - np.asarray(self.data))) < 0.000001)
 
-        self.dataset3.normalize()
+        self.dataset3.normalize(False)
         self.dataset3.unnormalize()
         self.assertFalse(self.dataset3.normalized)
-        self.assertTrue(np.all(self.dataset3.data == self.data))
+        self.assertTrue(np.sum(np.abs(self.dataset3.data - np.asarray(self.data))) < 0.000001)
 
     def test_one_hot(self):
         with self.assertRaises(AssertionError):
