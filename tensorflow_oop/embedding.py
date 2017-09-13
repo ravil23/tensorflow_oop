@@ -247,10 +247,16 @@ class TFEmbedding(TFNeuralNetwork):
         # Add centroid distance metric
         self.add_metric(tf.identity(centroid_pos_dist, 'centroid_pos_dist'),
                         summary_type=tf.summary.histogram,
-                        collections=['batch_train', 'batch_validation'])
+                        collections=['batch_train'])
         self.add_metric(tf.identity(centroid_neg_dist, 'centroid_neg_dist'),
                         summary_type=tf.summary.histogram,
-                        collections=['batch_train', 'batch_validation'])
+                        collections=['batch_train'])
+        self.add_metric(tf.reduce_mean(centroid_pos_dist, name='mean_centroid_pos_dist'),
+                        summary_type=tf.summary.scalar,
+                        collections=['batch_train'])
+        self.add_metric(tf.reduce_mean(centroid_neg_dist, name='mean_centroid_neg_dist'),
+                        summary_type=tf.summary.scalar,
+                        collections=['batch_train'])
 
         def max_fscore(pos_dist, neg_dist):
             """Centroid binary classification fscore."""
