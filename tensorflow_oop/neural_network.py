@@ -28,6 +28,7 @@ class TFNeuralNetwork(object):
     __slots__ = ['init', 'loaded', 'log_dir',
                  'inputs_shape', 'targets_shape', 'outputs_shape',
                  'inputs', 'targets', 'outputs',
+                 'top_k_placeholder', 'top_k_outputs',
                  'loss', 'global_step',
                  'sess', 'summary_writer',
                  'projector_config',
@@ -74,6 +75,8 @@ class TFNeuralNetwork(object):
         self.inputs = self.sess.graph.get_tensor_by_name('inputs:0')
         self.targets = self.sess.graph.get_tensor_by_name('targets:0')
         self.outputs = self.sess.graph.get_tensor_by_name('outputs:0')
+        self.top_k_placeholder = self.sess.graph.get_tensor_by_name('top_k_placeholder:0')
+        self.top_k_outputs = self.sess.graph.get_tensor_by_name('top_k_outputs:0')
         self.loss = self.sess.graph.get_tensor_by_name('loss:0')
         self.global_step = self.sess.graph.get_tensor_by_name('global_step:0')
 
@@ -166,6 +169,12 @@ class TFNeuralNetwork(object):
         # Build a Graph that computes predictions from the inference model
         outputs = self.inference(self.inputs, **self.kwargs)
         self.outputs = tf.identity(outputs, name='outputs')
+
+        # Top K outputs
+        self.top_k_placeholder = tf.placeholder(tf.int32, [], name='top_k_placeholder')
+        self.top_k_outputs = tf.nn.top_k(self.outputs,
+                                         k=self.top_k_placeholder,
+                                         name='top_k_outputs')
 
         # Loss function
         loss = self.loss_function(self.targets, self.outputs, **self.kwargs)
@@ -552,8 +561,9 @@ class TFNeuralNetwork(object):
             top_k_values -- batch of top k outputs
 
         """
-        return self.sess.run(tf.nn.top_k(self.outputs, k=k), feed_dict={
+        return self.sess.run(self.top_k_outputs, feed_dict={
             self.inputs: inputs_values,
+            self.top_k_placeholder: k
         })
 
     def __str__(self):
