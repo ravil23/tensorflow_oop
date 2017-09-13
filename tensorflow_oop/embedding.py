@@ -344,23 +344,23 @@ class TFEmbedding(TFNeuralNetwork):
         in_mask = losses >= margin
 
         # Add triplets count metric
-        all_triplets_count = tf.cast(tf.size(losses), tf.float32, name='all_triplets_count')
-        self.add_metric(all_triplets_count,
+        triplets_count_all = tf.cast(tf.size(losses), tf.float32, name='triplets_count_all')
+        self.add_metric(triplets_count_all,
                         summary_type=tf.summary.scalar,
                         collections=['batch_train'])
 
-        out_triplets_count = tf.cast(tf.count_nonzero(out_mask), tf.float32) / all_triplets_count
-        self.add_metric(tf.identity(out_triplets_count, name='out_triplets_count'),
+        triplets_portion_out = tf.cast(tf.count_nonzero(out_mask), tf.float32) / triplets_count_all
+        self.add_metric(tf.identity(triplets_portion_out, name='triplets_portion_out'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train'])
 
-        margin_triplets_count = tf.cast(tf.count_nonzero(margin_mask), tf.float32) / all_triplets_count
-        self.add_metric(tf.identity(margin_triplets_count, name='margin_triplets_count'),
+        triplets_portion_margin = tf.cast(tf.count_nonzero(margin_mask), tf.float32) / triplets_count_all
+        self.add_metric(tf.identity(triplets_portion_margin, name='triplets_portion_margin'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train'])
 
-        in_triplets_count = tf.cast(tf.count_nonzero(in_mask), tf.float32) / all_triplets_count
-        self.add_metric(tf.identity(in_triplets_count, name='in_triplets_count'),
+        triplets_portion_in = tf.cast(tf.count_nonzero(in_mask), tf.float32) / triplets_count_all
+        self.add_metric(tf.identity(triplets_portion_in, name='triplets_portion_in'),
                         summary_type=tf.summary.scalar,
                         collections=['batch_train'])
 

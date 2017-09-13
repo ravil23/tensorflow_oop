@@ -233,6 +233,11 @@ class TFNeuralNetwork(object):
                 collection = %s''' % collection
         name = metric.name
         key = str(name[name.rfind('/') + 1 : name.rfind(':')])
+        if key[-1].isdigit():
+            while key[-1].isdigit():
+                key = key[:-1]
+            key = key[:-1]
+
         for collection in collections:
             summary_type(collection + '/' + key,
                          metric,
@@ -506,6 +511,17 @@ class TFNeuralNetwork(object):
         saved_filename = saver.save(self.sess, filename,
                                     global_step=global_step)
         print('Model saved to: %s' % saved_filename)
+    
+    @check_initialization
+    def restore(self, filename):
+        """Restore checkpoint only if model initialized.
+        
+        Arguments:
+            filename -- path to checkpoint
+        
+        """
+        saver = tf.train.Saver(max_to_keep=None)
+        saver.restore(self.sess, filename)
 
     @check_initialization
     @check_inputs_values
