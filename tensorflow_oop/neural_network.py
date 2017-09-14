@@ -30,6 +30,7 @@ class TFNeuralNetwork(object):
                  'inputs', 'targets', 'outputs',
                  'top_k_placeholder', 'top_k_outputs',
                  'loss', 'global_step',
+                 'fit_checkpoint', 'best_val_checkpoint', 'best_val_result',
                  'sess', 'summary_writer',
                  'projector_config',
                  'kwargs', 'metrics']
@@ -44,6 +45,9 @@ class TFNeuralNetwork(object):
                         'eval_train': {},
                         'eval_validation': {},
                         'eval_test': {}}
+        self.fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
+        self.best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
+        self.best_val_result = None
 
     def load(self, model_checkpoint_path=None):
         """Load checkpoint.
@@ -296,7 +300,8 @@ class TFNeuralNetwork(object):
             logging_period=100,
             checkpoint_period=10000,
             evaluation_period=10000,
-            max_gradient_norm=None):
+            max_gradient_norm=None,
+            best_val_metric_key=None):
         """Train model.
 
         Arguments:
@@ -311,6 +316,7 @@ class TFNeuralNetwork(object):
             checkpoint_period -- iterations count between saving checkpoint
             evaluation_period -- iterations count between evaluation
             max_gradient_norm -- maximal gradient norm for clipping
+            best_val_metric_key -- metric key for saving best validation checkpoint
 
         """
         print('Start training...')
@@ -333,10 +339,6 @@ class TFNeuralNetwork(object):
         if batch_count == 0:
             print('Current iteration is equal to iteration count.')
             return
-
-        # Checkpoint configuration
-        checkpoint_name = 'fit-checkpoint'
-        checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
 
         # Get training operation
         train_op = self._get_train_op(optimizer, learning_rate, max_gradient_norm)
@@ -420,7 +422,7 @@ class TFNeuralNetwork(object):
                iteration % checkpoint_period == 0) or \
                iteration == iter_count:
                 print('Saving checkpoint...')
-                self.save(checkpoint_file, global_step=iteration)
+                self.save(self.fit_checkpoint, global_step=iteration)
 
             # Evaluate the model periodically
             if (evaluation_period is not None and \
@@ -433,7 +435,16 @@ class TFNeuralNetwork(object):
 
                 # Eval on validation set if necessary
                 if val_set is not None:
-                    self.evaluate_and_log(val_set, 'eval_validation', iteration)
+                    val_metrics = self.evaluate_and_log(val_set,
+                                                        'eval_validation',
+                                                        iteration)
+
+                    # Save best result on validation set if necessary
+                    if best_val_metric_key is not None:
+                        if self.best_val_result is None or \
+                           val_metrics[best_val_metric_key] > self.best_val_result:
+                            self.best_val_result = val_metrics[best_val_metric_key]
+                            self.save(self.best_val_checkpoint)
 
         self.summary_writer.flush()
         total_time = time.time() - start_fit_time
@@ -531,6 +542,11 @@ class TFNeuralNetwork(object):
         """
         saver = tf.train.Saver(max_to_keep=None)
         saver.restore(self.sess, filename)
+
+    @check_initialization
+    def restore_best_on_validation(self):
+        """Restore checkpoint with best result on validation set."""
+        self.restore(self.best_val_checkpoint)
 
     @check_initialization
     @check_inputs_values

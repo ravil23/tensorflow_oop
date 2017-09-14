@@ -109,6 +109,13 @@ def check_fit_arguments(function):
                 '''Validation set should be initialized:
                 val_set.init = %s''' % val_set.init
 
+            if best_val_metric_key is not None:
+                assert best_val_metric_key in self.metrics['eval_validation'], \
+                    '''Best validation metric key should be in collection
+                    for evaluate validation set:
+                    self.metrics['eval_validation'] = %s, best_val_metric_key = %s''' % \
+                    (self.metrics['eval_validation'], best_val_metric_key)
+
         return function(self, 
                         train_set,
                         epoch_count,
