@@ -325,11 +325,7 @@ class TFDataset(object):
                 first_ind = last_sequence_index + label_offset
                 current_label = self.data[first_ind : first_ind + label_length]
                 labels.append(current_label)
-
-            # Create dataset
-            dataset = TFDataset(sequences, labels)
-            dataset.copy(self)
-            dataset.initialize(data=sequences, labels=labels)
+            return np.asarray(sequences), np.asarray(labels)
         else:
             sequences = []
             last = self.size - sequence_length + 1
@@ -337,19 +333,7 @@ class TFDataset(object):
                 last_sequence_index = i + sequence_length
                 current_sequence = self.data[i : last_sequence_index]
                 sequences.append(current_sequence)
-            
-            # Create dataset
-            dataset = TFDataset(sequences)
-            dataset.copy(self)
-            dataset.initialize(data=sequences, labels=None)
-
-        # Update normalization information
-        dataset.normalized = False
-        dataset.normalization_global = None
-        dataset.normalization_mean = None
-        dataset.normalization_std = None
-
-        return dataset
+            return np.asarray(sequences), None
 
     @check_initialization
     def normalize(self, normalization_global):
@@ -360,29 +344,40 @@ class TFDataset(object):
         if self.normalized:
             return
 
+        result_data = self._normalize_implementation(self.data,
+                                                     self.data_shape,
+                                                     normalization_global)
+
+        # Update dataset with normalized value
+        self.data = result_data
+
+    def _normalize_implementation(self, data, data_shape, normalization_global):
         if not normalization_global:
             # Reshape to array of feature vectors
-            reshaped_data = np.reshape(self.data, [-1] + [np.sum(self.data_shape)])
+            if len(data_shape) > 0:
+                reshaped_data = np.reshape(data, [-1] + [np.sum(data_shape)])
+            else:
+                reshaped_data = np.reshape(data, [-1])
             reshaped_mean = np.mean(reshaped_data, axis=0)
             reshaped_std = np.std(reshaped_data, axis=0)
 
-            # Update dataset with normalized value
             normalized_data = (reshaped_data - reshaped_mean) / reshaped_std
 
-            # Correct data shape and save normalisation properties
-            self.data = np.reshape(normalized_data, [-1] + self.data_shape)
-            self.normalization_mean = np.reshape(reshaped_mean, self.data_shape)
-            self.normalization_std = np.reshape(reshaped_std, self.data_shape)
+            # Correct data shape and save normalization properties
+            self.normalization_mean = np.reshape(reshaped_mean, data_shape)
+            self.normalization_std = np.reshape(reshaped_std, data_shape)
+            result_data = np.reshape(normalized_data, [-1] + data_shape)
         else:
-            # Save normalisation properties
-            self.normalization_mean = np.mean(self.data)
-            self.normalization_std = np.std(self.data)
+            # Save normalization properties
+            self.normalization_mean = np.mean(data)
+            self.normalization_std = np.std(data)
 
             # Update dataset with normalized value
-            self.data = (self.data - self.normalization_mean) / self.normalization_std
+            result_data = (data - self.normalization_mean) / self.normalization_std
 
         self.normalization_global = normalization_global
         self.normalized = True
+        return result_data
 
     @check_initialization
     def unnormalize(self):
@@ -393,20 +388,30 @@ class TFDataset(object):
         if not self.normalized:
             return
 
-        if self.normalization_global:
+        result_data = self._unnormalize_implementation(self.data, self.data_shape)
+
+        # Update dataset with unnormalized value
+        self.data = result_data
+
+    def _unnormalize_implementation(self, data, data_shape):
+        if not self.normalization_global:
             # Reshape normalization properties to vector
-            reshaped_data = np.reshape(self.data, [-1] + [np.sum(self.data_shape)])
+            if len(data_shape) > 0:
+                reshaped_data = np.reshape(data, [-1] + [np.sum(data_shape)])
+            else:
+                reshaped_data = np.reshape(data, [-1])
             reshaped_mean = np.reshape(self.normalization_mean, [-1])
             reshaped_std = np.reshape(self.normalization_std, [-1])
 
-            # Update dataset with unnormalized value
+            # Calculate unnormalized data
             unnormalized_data = reshaped_data*reshaped_std +  reshaped_mean
-            self.data = np.reshape(unnormalized_data, [-1] + self.data_shape)
+            result_data = np.reshape(unnormalized_data, [-1] + data_shape)
         else:
-            # Update dataset with unnormalized value
-            self.data =  self.data*self.normalization_std + self.normalization_mean
+            # Calculate unnormalized data
+            result_data =  data*self.normalization_std + self.normalization_mean
 
         self.normalized = False
+        return result_data
 
     @check_initialization
     def one_hot(self, encoding_size, dtype=np.float):
@@ -469,15 +474,57 @@ class TFSequence(TFDataset):
             unique_shapes = %s''' % unique_shapes
         self.size = len(data)
         self.data = np.array([np.asarray(elem) for elem in data])
-        self.data_shape = [None] + list(unique_shapes)[0]
+        self.data_shape = [None] + list(list(unique_shapes)[0])
         self.data_ndim = len(self.data_shape)
 
     @check_initialization
-    def normalize(self, normalization_global=False):
+    def lengths(self):
+        """Sequences lengths."""
+        return np.array([len(sequence) for sequence in self.data])
+
+    @check_initialization
+    def concatenated_data(self):
+        """Concatenate sequences to one array."""
+        return np.concatenate(self.data)
+
+    @check_initialization
+    def normalize(self, normalization_global):
         """Normalize data to zero mean and one std."""
-        raise Exception('Normalize function not implemented now!')
+        assert self.data is not None, \
+            '''Data field should be initialized: self.data = %s''' % self.data
+
+        if self.normalized:
+            return
+
+        result_data = self._normalize_implementation(self.concatenated_data(),
+                                                     self.data_shape[1:],
+                                                     normalization_global)
+
+        # Update dataset with normalized value
+        first = 0
+        normalized_sequences = []
+        for length in self.lengths():
+            last = first + length
+            normalized_sequences.append(result_data[first:last])
+            first = last
+        self.data = np.asarray(normalized_sequences)
 
     @check_initialization
     def unnormalize(self):
         """Unnormalize dataset to original from zero mean and one std."""
-        raise Exception('Unnormalize function not implemented now!')
+        assert self.data is not None, \
+            'Data field should be initialized: self.data = %s' % self.data
+
+        if not self.normalized:
+            return
+
+        result_data = self._unnormalize_implementation(self.concatenated_data(),
+                                                       self.data_shape[1:])
+        # Update dataset with unnormalized value
+        first = 0
+        unnormalized_sequences = []
+        for length in self.lengths():
+            last = first + length
+            unnormalized_sequences.append(result_data[first:last])
+            first = last
+        self.data = np.asarray(unnormalized_sequences)

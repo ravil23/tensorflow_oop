@@ -227,21 +227,16 @@ class TestTFDataset(unittest.TestCase):
             self.dataset3.generate_sequences(1, 1, 1)
 
         # Test only data
-        seq = self.dataset3.generate_sequences(1, 1)
-        self.assertTrue(isinstance(seq, TFDataset))
-        self.assertEqual(len(seq), 3)
-        self.assertTrue(np.all(np.asarray(seq.data_shape) == np.asarray([1, 2])))
-        self.assertEqual(seq.data_ndim, 2)
-        self.assertEqual(seq.labels, None)
+        sequences, labels = self.dataset3.generate_sequences(1, 1)
+        self.assertEqual(len(sequences), 3)
+        self.assertTrue(np.all(np.asarray(sequences.shape[1:]) == np.asarray([1, 2])))
+        self.assertEqual(labels, None)
 
         # Test data with labels
-        seq = self.dataset1.generate_sequences(2, 1, 1, 0)
-        self.assertTrue(isinstance(seq, TFDataset))
-        self.assertEqual(len(seq), 1)
-        self.assertTrue(np.all(np.asarray(seq.data_shape) == np.asarray([2, 2])))
-        self.assertEqual(seq.data_ndim, 2)
-        self.assertTrue(np.all(np.asarray(seq.labels_shape) == np.asarray([1, 2])))
-        self.assertEqual(seq.labels_ndim, 2)
+        sequences, labels = self.dataset1.generate_sequences(2, 1, 1, 0)
+        self.assertEqual(len(sequences), 1)
+        self.assertTrue(np.all(np.asarray(sequences.shape[1:]) == np.asarray([2, 2])))
+        self.assertTrue(np.all(np.asarray(labels.shape[1:]) == np.asarray([1, 2])))
 
     def test_normalize(self):
         # Test with global
