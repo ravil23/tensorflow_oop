@@ -268,6 +268,9 @@ class TFEmbedding(TFNeuralNetwork):
                 '''Inputs values and labels should be the same lengths:
                 len(inputs_values) = %s, len(labels) = %s''' \
                 % (len(inputs_values), len(labels))
+        if len(inputs_values) > 10000:
+            warnings.warn('''Inputs values length should not be greater then 10000:
+                          len(inputs_values) = %s''' % len(inputs_values))
 
         print('Visualizing...')
 
