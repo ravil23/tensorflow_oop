@@ -344,26 +344,18 @@ class TFNeuralNetwork(object):
         train_op = self._get_train_op(optimizer, learning_rate, max_gradient_norm)
 
         # Print training options
-        if epoch_count is not None:
-            print('%20s: %s' % ('epoch_count', epoch_count))
-        print('%20s: %s' % ('iter_count', iter_count))
-        print('%20s: %s' % ('optimizer', optimizer))
-        print('%20s: %s' % ('learning_rate', learning_rate))
-        print('%20s: %s' % ('train_batch_size', train_set.batch_size))
-        if val_set is not None:
-            print('%20s: %s' % ('val_batch_size', val_set.batch_size))
-        print('%20s: %s' % ('summarizing_period', summarizing_period))
-        print('%20s: %s' % ('logging_period', logging_period))
-        print('%20s: %s' % ('checkpoint_period', checkpoint_period))
-        print('%20s: %s' % ('evaluation_period', evaluation_period))
-        if max_gradient_norm is not None:
-            print('%20s: %s' % ('max_gradient_norm', max_gradient_norm))
-        buf = ''
-        collections = sorted(list(self.metrics.keys()))
-        for collection in collections:
-            keys = list(self.metrics[collection].keys())
-            buf += '%30s: %s\n' % (collection, sorted(keys))
-        print('%20s:\n%s' % ('metrics', buf))
+        self._print_training_options(epoch_count,
+                                     iter_count,
+                                     optimizer,
+                                     learning_rate,
+                                     train_set.batch_size,
+                                     val_set.batch_size if val_set else None,
+                                     summarizing_period,
+                                     logging_period,
+                                     checkpoint_period,
+                                     evaluation_period,
+                                     max_gradient_norm,
+                                     best_val_metric_key)
 
         # Start the training loop
         iter_times = []
@@ -380,14 +372,8 @@ class TFNeuralNetwork(object):
 
         # Loop over all batches
         for batch in train_set.iterbatches(batch_count):
-            # Fill feed dict
-            feed_dict = {
-                self.inputs: batch.data,
-                self.targets: batch.labels,
-            }
-
-            # Run one step of the model training
-            self.sess.run(train_op, feed_dict=feed_dict)
+            # One training iteration
+            self.training_step(batch, train_op)
 
             # Save iter time
             iter_times.append(time.time() - start_iter_time)
@@ -400,15 +386,13 @@ class TFNeuralNetwork(object):
             # Write the summaries periodically
             if iteration % summarizing_period == 0 or iteration == iter_count:
                 # Update the events file with training summary on batch
+                feed_dict = self.fill_feed_dict(batch)
                 self._write_summaries('batch_train', feed_dict, iteration)
 
                 # Update the events file with validation summary on batch
                 if val_set is not None:
                     val_batch = val_set.next_batch()
-                    val_feed_dict={
-                        self.inputs: val_batch.data,
-                        self.targets: val_batch.labels,
-                    }
+                    val_feed_dict = self.fill_feed_dict(val_batch)
                     self._write_summaries('batch_validation', val_feed_dict, iteration)
 
             # Print an overview periodically
@@ -460,6 +444,33 @@ class TFNeuralNetwork(object):
         total_time = time.time() - start_fit_time
         print('Finish training iteration (total time %.3f sec).\n' % total_time)
 
+    def fill_feed_dict(self, batch):
+        """Get filled feed dictionary for batch.
+
+        Arguments:
+            batch -- batch of inputs
+
+        """
+        feed_dict = {
+            self.inputs: batch.data,
+            self.targets: batch.labels,
+        }
+        return feed_dict
+
+    def training_step(self, batch, train_op):
+        """Run one training iteration.
+
+        Arguments:
+            batch -- batch of inputs
+            train_op -- training operation
+
+        """
+        # Fill feed dict
+        feed_dict = self.fill_feed_dict(batch)
+
+        # Run one step of the model training
+        self.sess.run(train_op, feed_dict=feed_dict)
+    
     @check_initialization
     @check_evaluate_arguments
     def evaluate(self, data, collection='eval_test', iteration=None):
@@ -725,3 +736,40 @@ class TFNeuralNetwork(object):
         summary_str = self.sess.run(tf.summary.merge_all(collection),
                                     feed_dict=feed_dict)
         self.summary_writer.add_summary(summary_str, iteration)
+
+    def _print_training_options(self,
+                                epoch_count,
+                                iter_count,
+                                optimizer,
+                                learning_rate,
+                                train_batch_size,
+                                val_batch_size,
+                                summarizing_period,
+                                logging_period,
+                                checkpoint_period,
+                                evaluation_period,
+                                max_gradient_norm,
+                                best_val_metric_key):
+        """Formatted print training options."""
+        if epoch_count:
+            print('%20s: %s' % ('epoch_count', epoch_count))
+        print('%20s: %s' % ('iter_count', iter_count))
+        print('%20s: %s' % ('optimizer', optimizer))
+        print('%20s: %s' % ('learning_rate', learning_rate))
+        print('%20s: %s' % ('train_batch_size', train_batch_size))
+        if val_batch_size:
+            print('%20s: %s' % ('val_batch_size', val_batch_size))
+        print('%20s: %s' % ('summarizing_period', summarizing_period))
+        print('%20s: %s' % ('logging_period', logging_period))
+        print('%20s: %s' % ('checkpoint_period', checkpoint_period))
+        print('%20s: %s' % ('evaluation_period', evaluation_period))
+        if max_gradient_norm is not None:
+            print('%20s: %s' % ('max_gradient_norm', max_gradient_norm))
+        if best_val_metric_key is not None:
+            print('%20s: %s' % ('best_val_metric_key', best_val_metric_key))
+        buf = ''
+        collections = sorted(list(self.metrics.keys()))
+        for collection in collections:
+            keys = list(self.metrics[collection].keys())
+            buf += '%30s: %s\n' % (collection, sorted(keys))
+        print('%20s:\n%s' % ('metrics', buf))
