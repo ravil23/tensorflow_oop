@@ -253,56 +253,6 @@ class TFEmbedding(TFNeuralNetwork):
         return tf.reduce_mean(valid_losses)
 
     @check_initialization
-    @check_fit_arguments
-    def fit(self,
-            train_set,
-            epoch_count=None,
-            iter_count=None,
-            optimizer=tf.train.RMSPropOptimizer,
-            learning_rate=0.001,
-            val_set=None,
-            summarizing_period=100,
-            logging_period=100,
-            checkpoint_period=10000,
-            evaluation_period=10000,
-            max_gradient_norm=None):
-        """Train model.
-
-        Arguments:
-            train_set -- dataset for training
-            epoch_count -- training epochs count
-            iter_count -- training iterations count
-            optimizer -- tensorflow optimizer object
-            learning_rate -- initial gradient descent step
-            val_set -- dataset for validation
-            summarizing_period -- iterations count between summarizing
-            logging_period -- iterations count between logging to stdout
-            checkpoint_period -- iterations count between saving checkpoint
-            evaluation_period -- iterations count between evaluation
-            max_gradient_norm -- maximal gradient norm for clipping
-
-        """
-        assert isinstance(train_set, TFTripletset), \
-            '''Training set should be object of TFTripletset type:
-            type(train_set) = %s''' % type(train_set)
-        if val_set is not None:
-            assert isinstance(val_set, TFTripletset), \
-                '''Validation set should be object of TFTripletset type:
-                type(val_set) = %s''' % type(val_set)
-
-        super(TFEmbedding, self).fit(train_set=train_set,
-                                     epoch_count=epoch_count,
-                                     iter_count=iter_count,
-                                     optimizer=optimizer,
-                                     learning_rate=learning_rate,
-                                     val_set=val_set,
-                                     summarizing_period=summarizing_period,
-                                     logging_period=logging_period,
-                                     checkpoint_period=checkpoint_period,
-                                     evaluation_period=evaluation_period,
-                                     max_gradient_norm=max_gradient_norm)
-
-    @check_initialization
     @check_inputs_values
     def visualize(self, inputs_values, var_name, labels=None):
         """Visualize embeddings in TensorBoard.
