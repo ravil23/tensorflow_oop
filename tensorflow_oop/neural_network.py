@@ -30,7 +30,8 @@ class TFNeuralNetwork(object):
                  'inputs', 'targets', 'outputs',
                  'top_k_placeholder', 'top_k_outputs',
                  'loss', 'global_step',
-                 'fit_checkpoint', 'best_val_checkpoint', 'best_val_result',
+                 'fit_checkpoint',
+                 'best_val_checkpoint', 'best_val_result', 'best_val_iteration',
                  'sess', 'summary_writer',
                  'projector_config',
                  'kwargs', 'metrics']
@@ -47,7 +48,6 @@ class TFNeuralNetwork(object):
                         'eval_test': {}}
         self.fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
         self.best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
-        self.best_val_result = None
 
     def load(self, model_checkpoint_path=None):
         """Load checkpoint.
@@ -369,6 +369,14 @@ class TFNeuralNetwork(object):
         iter_times = []
         start_iter_time = time.time()
         last_logging_iter = 0
+        
+        # Calculate initial result on validation set
+        if val_set is not None and best_val_metric_key is not None:
+            self.best_val_iteration = self.global_step.eval(session=self.sess)
+            val_metrics = self.evaluate_and_log(val_set,
+                                                'eval_validation',
+                                                self.best_val_iteration)
+            self.best_val_result = val_metrics[best_val_metric_key]
 
         # Loop over all batches
         for batch in train_set.iterbatches(batch_count):
@@ -421,7 +429,7 @@ class TFNeuralNetwork(object):
             if (checkpoint_period is not None and \
                iteration % checkpoint_period == 0) or \
                iteration == iter_count:
-                print('Saving checkpoint...')
+                print('Saving checkpoint periodically...')
                 self.save(self.fit_checkpoint, global_step=iteration)
 
             # Evaluate the model periodically
@@ -444,6 +452,8 @@ class TFNeuralNetwork(object):
                         if self.best_val_result is None or \
                            val_metrics[best_val_metric_key] > self.best_val_result:
                             self.best_val_result = val_metrics[best_val_metric_key]
+                            self.best_val_iteration = iteration
+                            print('Saving checkpoint with best result on validation set...')
                             self.save(self.best_val_checkpoint)
 
         self.summary_writer.flush()

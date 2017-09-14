@@ -69,7 +69,8 @@ def run(args):
     model.fit(train_set,
               epoch_count=args.epoch_count,
               val_set=val_set,
-              learning_rate=learning_rate)
+              learning_rate=learning_rate,
+              best_val_metric_key='accuracy')
 
     # Evaluation
     if train_set is not None:

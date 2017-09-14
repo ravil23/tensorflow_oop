@@ -40,6 +40,7 @@ def check_fit_arguments(function):
                 checkpoint_period=10000,
                 evaluation_period=10000,
                 max_gradient_norm=None,
+                best_val_metric_key=None,
                 *args,
                 **kwargs):
         assert isinstance(learning_rate, tf.Tensor) or learning_rate > 0, \
@@ -128,6 +129,7 @@ def check_fit_arguments(function):
                         checkpoint_period,
                         evaluation_period,
                         max_gradient_norm,
+                        best_val_metric_key,
                         *args,
                         **kwargs)
     return wrapper
