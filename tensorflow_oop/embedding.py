@@ -253,29 +253,34 @@ class TFEmbedding(TFNeuralNetwork):
         return tf.reduce_mean(valid_losses)
 
     @check_initialization
-    @check_inputs_values
-    def visualize(self, inputs_values, var_name, labels=None):
+    def visualize(self, embeddings, var_name, labels=None):
         """Visualize embeddings in TensorBoard.
 
         Arguments:
-            inputs_values -- batch of inputs
+            embeddings -- embeddings values
             var_name -- string key
             labels -- optional embeddings labels
 
         """
         if labels is not None:
-            assert len(inputs_values) == len(labels), \
-                '''Inputs values and labels should be the same lengths:
-                len(inputs_values) = %s, len(labels) = %s''' \
-                % (len(inputs_values), len(labels))
-        if len(inputs_values) > 10000:
-            warnings.warn('''Inputs values length should not be greater then 10000:
-                          len(inputs_values) = %s''' % len(inputs_values))
+            assert len(embeddings) == len(labels), \
+                '''Embeddings and labels should be the same lengths:
+                len(embeddings) = %s, len(labels) = %s''' \
+                % (len(embeddings), len(labels))
+            assert len(labels) == len(labels.flatten()), \
+                '''Labels length should be equal to flatten labels:
+                len(labels) = %s, len(labels.flatten()) = %s''' \
+                % (len(labels), len(labels.flatten()))
+        if len(embeddings) > 10000:
+            warnings.warn('''Embeddings length should not be greater then 10000:
+                          len(embeddings) = %s''' % len(embeddings))
+            embeddings = embeddings[:10000]
+            labels = labels[:10000]
 
         print('Visualizing...')
 
         # Get visualization embeddings
-        vis_embeddings = self.forward(inputs_values)
+        vis_embeddings = embeddings
         if labels is not None:
             vis_labels = labels.flatten()
         vis_name = tf.get_default_graph().unique_name(var_name,
@@ -297,12 +302,8 @@ class TFEmbedding(TFNeuralNetwork):
         projector.visualize_embeddings(self.summary_writer,
                                        self.projector_config)
 
-        # Checkpoint configuration
-        checkpoint_name = 'vis-checkpoint'
-        checkpoint_file = os.path.join(self.log_dir, checkpoint_name)
-
         # Save checkpoint
-        self.save(checkpoint_file)
+        self.save(self.vis_checkpoint)
 
         # Write labels info
         if labels is not None:

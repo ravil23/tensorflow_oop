@@ -30,7 +30,7 @@ class TFNeuralNetwork(object):
                  'inputs', 'targets', 'outputs',
                  'top_k_placeholder', 'top_k_outputs',
                  'loss', 'global_step',
-                 'fit_checkpoint',
+                 'fit_checkpoint', 'vis_checkpoint',
                  'best_val_checkpoint', 'best_val_result', 'best_val_iteration',
                  'sess', 'summary_writer',
                  'projector_config',
@@ -47,6 +47,7 @@ class TFNeuralNetwork(object):
                         'eval_validation': {},
                         'eval_test': {}}
         self.fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
+        self.vis_checkpoint = os.path.join(self.log_dir, 'vis-checkpoint')
         self.best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
 
     def load(self, model_checkpoint_path=None):
@@ -364,6 +365,7 @@ class TFNeuralNetwork(object):
         
         # Calculate initial result on validation set
         if val_set is not None and best_val_metric_key is not None:
+            print('Initial evaluation...')
             self.best_val_iteration = self.global_step.eval(session=self.sess)
             val_metrics = self.evaluate_and_log(val_set,
                                                 'eval_validation',
@@ -371,9 +373,9 @@ class TFNeuralNetwork(object):
             self.best_val_result = val_metrics[best_val_metric_key]
 
         # Loop over all batches
-        for batch in train_set.iterbatches(batch_count):
+        for train_batch in train_set.iterbatches(batch_count):
             # One training iteration
-            self.training_step(batch, train_op)
+            self.training_step(train_set, train_batch, train_op)
 
             # Save iter time
             iter_times.append(time.time() - start_iter_time)
@@ -386,11 +388,12 @@ class TFNeuralNetwork(object):
             # Write the summaries periodically
             if iteration % summarizing_period == 0 or iteration == iter_count:
                 # Update the events file with training summary on batch
-                feed_dict = self.fill_feed_dict(batch)
-                self._write_summaries('batch_train', feed_dict, iteration)
+                train_feed_dict = self.fill_feed_dict(train_batch)
+                self._write_summaries('batch_train', train_feed_dict, iteration)
 
                 # Update the events file with validation summary on batch
-                if val_set is not None:
+                if val_set is not None and \
+                   len(self.metrics['batch_validation']) > 0:
                     val_batch = val_set.next_batch()
                     val_feed_dict = self.fill_feed_dict(val_batch)
                     self._write_summaries('batch_validation', val_feed_dict, iteration)
@@ -401,7 +404,7 @@ class TFNeuralNetwork(object):
                 duration = np.sum(iter_times[-logging_period:])
 
                 # Print logging info
-                metrics = self.evaluate(batch, 'log_train')
+                metrics = self.evaluate(train_batch, 'log_train')
                 metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
                 format_string = 'Iter %d / %d (epoch %d / %d):   %s   [%.3f sec]'
                 print(format_string % (iteration, iter_count,
@@ -426,7 +429,8 @@ class TFNeuralNetwork(object):
                 self.evaluate_and_log(train_set, 'eval_train', iteration)
 
                 # Eval on validation set if necessary
-                if val_set is not None:
+                if val_set is not None and \
+                   len(self.metrics['eval_validation']) > 0:
                     val_metrics = self.evaluate_and_log(val_set,
                                                         'eval_validation',
                                                         iteration)
@@ -457,20 +461,21 @@ class TFNeuralNetwork(object):
         }
         return feed_dict
 
-    def training_step(self, batch, train_op):
+    def training_step(self, train_set, train_batch, train_op):
         """Run one training iteration.
 
         Arguments:
-            batch -- batch of inputs
+            train_set -- training dataset
+            train_batch -- batch of inputs
             train_op -- training operation
 
         """
         # Fill feed dict
-        feed_dict = self.fill_feed_dict(batch)
+        feed_dict = self.fill_feed_dict(train_batch)
 
         # Run one step of the model training
         self.sess.run(train_op, feed_dict=feed_dict)
-    
+
     @check_initialization
     @check_evaluate_arguments
     def evaluate(self, data, collection='eval_test', iteration=None):
@@ -495,10 +500,7 @@ class TFNeuralNetwork(object):
             # Calculate metrics values
             metric_keys = list(self.metrics[collection].keys())
             metric_values = list(self.metrics[collection].values())
-            feed_dict={
-                self.inputs: data.data,
-                self.targets: data.labels,
-            }
+            feed_dict = self.fill_feed_dict(data)
             estimates = self.sess.run(metric_values, feed_dict=feed_dict)
             for i in range(len(self.metrics[collection])):
                 result[metric_keys[i]] = estimates[i]

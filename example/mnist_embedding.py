@@ -60,16 +60,18 @@ def run(args):
     # Fitting model
     model.fit(train_set, epoch_count=args.epoch_count, val_set=val_set)
 
+    # Calculate visualisation embeddings and labels
+    vis_train_embeddings = model.forward(train_set.data[:args.vis_count])
+    vis_train_labels = train_set.labels[:args.vis_count]
+    vis_val_embeddings = model.forward(val_set.data[:args.vis_count])
+    vis_val_labels = val_set.labels[:args.vis_count]
+    vis_test_embeddings = model.forward(test_set.data[:args.vis_count])
+    vis_test_labels = test_set.labels[:args.vis_count]
+
     # Visualization
-    model.visualize(inputs_values=train_set.data[:args.vis_count],
-                    var_name='train_set',
-                    labels=train_set.labels[:args.vis_count])
-    model.visualize(inputs_values=val_set.data[:args.vis_count],
-                    var_name='val_set',
-                    labels=val_set.labels[:args.vis_count])
-    model.visualize(inputs_values=test_set.data[:args.vis_count],
-                    var_name='test_set',
-                    labels=test_set.labels[:args.vis_count])
+    model.visualize(vis_train_embeddings, 'train_set', labels=vis_train_labels)
+    model.visualize(vis_val_embeddings, 'val_set', labels=vis_val_labels)
+    model.visualize(vis_test_embeddings, 'test_set', labels=vis_test_labels)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
