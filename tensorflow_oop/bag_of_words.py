@@ -4,6 +4,7 @@ Bag of words.
 
 import numpy as np
 from collections import Counter
+import operator
 
 
 class TFBagOfWords(object):
@@ -13,7 +14,8 @@ class TFBagOfWords(object):
     """
 
     __slots__ = ['size',
-                 'non_chars', 'lower_caise', 'digit_zero', 'min_count',
+                 'non_chars', 'lower_caise', 'digit_zero',
+                 'min_count', 'max_count',
                  'words_counter', 'dictionary']
 
     def __init__(self,
@@ -21,7 +23,8 @@ class TFBagOfWords(object):
                  non_chars='/.,!?()_-";:*=&|%<>@\'\t\n\r',
                  lower_caise=True,
                  digit_zero=True,
-                 min_count=1):
+                 min_count=1,
+                 max_count=np.inf):
         """Initialize Bag of words model.
 
         Arguments:
@@ -30,6 +33,7 @@ class TFBagOfWords(object):
             lower_caise -- mode with lower symbols
             digit_zero -- convert all digits to zero
             min_count -- filter minimum words count for adding to dictionary
+            max_count -- filter maximum words count for adding to dictionary
 
         Return:
             words -- list
@@ -40,15 +44,16 @@ class TFBagOfWords(object):
         self.lower_caise = lower_caise
         self.digit_zero = digit_zero
         self.min_count = min_count
+        self.max_count = max_count
 
         # Calculate statistic
         words = self.list_of_words(' '.join(texts))
-        self.words_counter = dict(Counter(words))
+        self.words_counter = Counter(words)
 
         # Calculate dictionary
         self.dictionary = {}
         for word in sorted(self.words_counter):
-            if self.words_counter[word] >= self.min_count:
+            if self.min_count <= self.words_counter[word] <= self.max_count:
                 self.dictionary[word] = len(self.dictionary)
         self.size = len(self.dictionary)
 
@@ -108,7 +113,10 @@ class TFBagOfWords(object):
         for attr in self.__slots__:
             if attr != 'words_counter' and attr != 'dictionary':
                 string += '%20s: %s\n' % (attr, getattr(self, attr))
-        string += '%20s:\n%s\n' % ('words_counter', self.words_counter)
+        sorted_words_counter = sorted(self.words_counter.items(),
+                                      key=operator.itemgetter(1),
+                                      reverse=True)
+        string += '%20s:\n%s\n' % ('words_counter', sorted_words_counter)
         string += '%20s:\n%s\n' % ('dictionary', self.dictionary)
         return string[:-1]
 
