@@ -26,9 +26,9 @@ class TFBatch:
             setattr(self, key, kwargs[key])
 
     def __str__(self):
-        string = "TFBatch object:\n"
+        string = 'TFBatch object:\n'
         for attr in self.__dict__:
-            string += "%s: \n%s\n" % (attr, getattr(self, attr))
+            string += '%20s:\n%s\n' % (attr, getattr(self, attr))
         return string[:-1]
 
 
@@ -451,11 +451,11 @@ class TFDataset(object):
         string = 'TFDataset object:\n'
         for attr in self.__slots__:
             if attr != 'data' and attr != 'labels':
-                string += "%20s: %s\n" % (attr, getattr(self, attr))
+                string += '%20s: %s\n' % (attr, getattr(self, attr))
         if 'data' in self.__slots__:
-            string += "%s: \n%s\n" % ('data', getattr(self, 'data'))
+            string += '%s:\n%s\n' % ('data', getattr(self, 'data'))
         if 'labels' in self.__slots__:
-            string += "%s: \n%s\n" % ('labels', getattr(self, 'labels'))
+            string += '%s:\n%s\n' % ('labels', getattr(self, 'labels'))
         return string[:-1]
 
 class TFSequence(TFDataset):
