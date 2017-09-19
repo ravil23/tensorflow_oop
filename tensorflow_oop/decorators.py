@@ -40,7 +40,7 @@ def check_fit_arguments(function):
                 checkpoint_period=10000,
                 evaluation_period=10000,
                 max_gradient_norm=None,
-                best_val_metric_key=None,
+                best_val_key=None,
                 *args,
                 **kwargs):
         assert isinstance(learning_rate, tf.Tensor) or learning_rate > 0, \
@@ -110,12 +110,12 @@ def check_fit_arguments(function):
                 '''Validation set should be initialized:
                 val_set.init = %s''' % val_set.init
 
-            if best_val_metric_key is not None:
-                assert best_val_metric_key in self.metrics['eval_validation'], \
+            if best_val_key is not None:
+                assert best_val_key in self.metrics['eval_validation'], \
                     '''Best validation metric key should be in collection
                     for evaluate validation set:
-                    self.metrics['eval_validation'] = %s, best_val_metric_key = %s''' % \
-                    (self.metrics['eval_validation'], best_val_metric_key)
+                    self.metrics['eval_validation'] = %s, best_val_key = %s''' % \
+                    (self.metrics['eval_validation'], best_val_key)
 
         return function(self, 
                         train_set,
@@ -129,15 +129,15 @@ def check_fit_arguments(function):
                         checkpoint_period,
                         evaluation_period,
                         max_gradient_norm,
-                        best_val_metric_key,
+                        best_val_key,
                         *args,
                         **kwargs)
     return wrapper
 
 
 def check_evaluate_arguments(function):
-    """Decorator for check fit arguments."""
-    def wrapper(self, data, collection='eval_test', iteration=None, *args, **kwargs):
+    """Decorator for check evaluate arguments."""
+    def wrapper(self, batch, collection='eval_test', *args, **kwargs):
         assert collection in ['batch_train',
                               'batch_validation',
                               'log_train',
@@ -153,20 +153,36 @@ def check_evaluate_arguments(function):
              'eval_test']:
             collection = %s''' % collection
 
-        assert isinstance(data, TFDataset) or isinstance(data, TFBatch), \
-            '''Argument should be object of TFDataset or TFBatch type:
-            type(data) = %s''' % type(data)
+        assert isinstance(batch, TFBatch), \
+            '''Argument batch should be object of TFBatch type:
+            type(batch) = %s''' % type(batch)
 
-        if isinstance(data, TFDataset):
-            assert data.init, \
+        return function(self, batch, collection, *args, **kwargs)
+    return wrapper
+
+
+def check_produce_arguments(function):
+    """Decorator for check produce arguments."""
+    def wrapper(self, dataset, batch, output_tensors, *args, **kwargs):
+        if dataset is not None:
+            assert isinstance(dataset, TFDataset), \
+                '''Argument dataset should be object of TFDataset type:
+                type(dataset) = %s''' % type(dataset)
+
+            assert dataset.init, \
                 '''Dataset should be initialized:
-                data.init = %s''' % data.init
+                dataset.init = %s''' % data.init
 
-        if isinstance(data, TFBatch):
-            assert hasattr(data, 'data') and hasattr(data, 'labels'), \
-                '''Batch should contain attributes \'data\' and \'labels\'.'''
+        if batch is not None:
+            assert batch is None or isinstance(batch, TFBatch), \
+                '''Argument batch should be object of TFBatch type:
+                type(batch) = %s''' % type(batch)
 
-        return function(self, data, collection, iteration, *args, **kwargs)
+        assert isinstance(output_tensors, (list, tuple)), \
+            '''Output tensors should be list or tuple:
+            type(output_tensors) = %s''' % type(output_tensors)
+
+        return function(self, dataset, batch, output_tensors, *args, **kwargs)
     return wrapper
 
 

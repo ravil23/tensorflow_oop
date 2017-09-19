@@ -38,7 +38,6 @@ class TFClassifier(TFNeuralNetwork):
                    inputs_type=tf.float32,
                    targets_type=tf.float32,
                    outputs_type=tf.float32,
-                   reset=True,
                    **kwargs):
         """Initialize model.
 
@@ -59,7 +58,6 @@ class TFClassifier(TFNeuralNetwork):
                                              inputs_type=inputs_type,
                                              targets_type=targets_type,
                                              outputs_type=outputs_type,
-                                             reset=reset,
                                              **kwargs)
 
         # Add probability operation

@@ -14,38 +14,52 @@ from tensorflow_oop.classification import *
 # Define model
 class MnistRNN(TFClassifier):
     def inference(self, inputs, **kwargs):
+        # Get arguments
         input_size = self.inputs_shape[0]
         hidden_size = kwargs['hidden_size']
         output_size = self.outputs_shape[0]
-        inputs = tf.reshape(inputs, shape=[-1, 28, 28])
+
+        # Init stack of RNN cells
         def rnn_cell():
             return tf.contrib.rnn.BasicLSTMCell(hidden_size, state_is_tuple=True)
         cells = [rnn_cell() for _ in range(2)]
         multi_cell = tf.nn.rnn_cell.MultiRNNCell(cells, state_is_tuple=True)
+
+        # Calculate dynamic batch size
         batch_size = tf.shape(inputs)[0]
+
+        # Set initial state with zero
         init_state = multi_cell.zero_state(batch_size, dtype=tf.float32)
+
+        # Merge cells with dynamic RNN
         rnn_outputs, rnn_states = tf.nn.dynamic_rnn(
             cell=multi_cell,
             initial_state=init_state,
             inputs=inputs,
             swap_memory=True,
             time_major=False)
+
+        # Output fully connected layer
         with tf.variable_scope('output'):
             weights = tf.Variable(
                 tf.truncated_normal([hidden_size, output_size],
                                     stddev=1.0 / np.sqrt(float(hidden_size))))
             biases = tf.Variable(tf.zeros([output_size]))
             outputs = tf.nn.xw_plus_b(rnn_outputs[:,-1], weights, biases)
+
         return outputs
 
 def run(args):
     print('Loading dataset...')
     mnist = input_data.read_data_sets(args.input, one_hot=True)
-    train_set = TFDataset(mnist.train.images, mnist.train.labels)
+    reshaped_data = np.reshape(mnist.train.images, [-1, 28, 28])
+    train_set = TFSequence(reshaped_data, mnist.train.labels)
     train_set.set_batch_size(args.batch_size)
-    val_set = TFDataset(mnist.validation.images, mnist.validation.labels)
+    reshaped_data = np.reshape(mnist.validation.images, [-1, 28, 28])
+    val_set = TFSequence(reshaped_data, mnist.validation.labels)
     val_set.set_batch_size(args.batch_size)
-    test_set = TFDataset(mnist.test.images, mnist.test.labels)
+    reshaped_data = np.reshape(mnist.test.images, [-1, 28, 28])
+    test_set = TFSequence(reshaped_data, mnist.test.labels)
     test_set.set_batch_size(args.batch_size)
     print('Traininig  set shape: %s' % train_set.str_shape())
     print('Validation set shape: %s' % val_set.str_shape())
@@ -67,14 +81,11 @@ def run(args):
     
     # Evaluation
     if train_set is not None:
-        train_eval = model.evaluate(train_set)
-        print('Results on training set: %s' % train_eval)
+        model.evaluate_and_log(train_set.full_batch())
     if val_set is not None:
-        val_eval = model.evaluate(val_set)
-        print('Results on validation set: %s' % val_eval)
+        model.evaluate_and_log(val_set.full_batch())
     if test_set is not None:
-        test_eval = model.evaluate(test_set)
-        print('Results on testing set: %s' % test_eval)
+        model.evaluate_and_log(test_set.full_batch())
 
     if args.show:
         print('Showing test set...')

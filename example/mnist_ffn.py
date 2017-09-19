@@ -14,21 +14,27 @@ from tensorflow_oop.classification import *
 # Define model
 class MnistFFN(TFClassifier):
     def inference(self, inputs, **kwargs):
+        # Get arguments
         input_size = self.inputs_shape[0]
         hidden_size = kwargs['hidden_size']
         output_size = self.outputs_shape[0]
+
+        # Hidden fully connected layer
         with tf.variable_scope('hidden'):
             weights = tf.Variable(
                 tf.truncated_normal([input_size, hidden_size],
                                     stddev=1.0 / np.sqrt(float(input_size))))
             biases = tf.Variable(tf.zeros([hidden_size]))
             hidden = tf.nn.relu(tf.nn.xw_plus_b(inputs, weights, biases))
+
+        # Output fully connected layer
         with tf.variable_scope('output'):
             weights = tf.Variable(
                 tf.truncated_normal([hidden_size, output_size],
                                     stddev=1.0 / np.sqrt(float(hidden_size))))
             biases = tf.Variable(tf.zeros([output_size]))
             outputs = tf.nn.xw_plus_b(hidden, weights, biases)
+
         return outputs
 
 def run(args):
@@ -56,32 +62,25 @@ def run(args):
     print('%s\n' % model)
 
     # Add learning rate decay
-    learning_rate = tf.train.exponential_decay(0.01,
-                                               model.global_step,
-                                               1000,
-                                               0.97,
+    learning_rate = tf.train.exponential_decay(0.01, model.global_step,
+                                               1000, 0.97,
                                                name='learning_rate')
-    model.add_metric(learning_rate,
-                     tf.summary.scalar,
-                     ['batch_train'])
+    model.add_metric(learning_rate, tf.summary.scalar, ['batch_train'])
 
     # Fitting model
     model.fit(train_set,
               epoch_count=args.epoch_count,
               val_set=val_set,
               learning_rate=learning_rate,
-              best_val_metric_key='accuracy')
+              best_val_key='accuracy')
 
     # Evaluation
     if train_set is not None:
-        train_eval = model.evaluate(train_set)
-        print('Results on training set: %s' % train_eval)
+        model.evaluate_and_log(train_set.full_batch())
     if val_set is not None:
-        val_eval = model.evaluate(val_set)
-        print('Results on validation set: %s' % val_eval)
+        model.evaluate_and_log(val_set.full_batch())
     if test_set is not None:
-        test_eval = model.evaluate(test_set)
-        print('Results on testing set: %s' % test_eval)
+        model.evaluate_and_log(test_set.full_batch())
 
     if args.show:
         print('Showing test set...')

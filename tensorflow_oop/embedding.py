@@ -293,17 +293,17 @@ class TFEmbedding(TFNeuralNetwork):
         self.sess.run(tf.variables_initializer([vis_var]))
 
         # Add embedding tensorboard visualization
-        embed = self.projector_config.embeddings.add()
+        embed = self._projector_config.embeddings.add()
         embed.tensor_name = vis_name + ':0'
         if labels is not None:
             embed.metadata_path = os.path.join(
                 self.log_dir,
                 embed.tensor_name + '_metadata.tsv')
         projector.visualize_embeddings(self.summary_writer,
-                                       self.projector_config)
+                                       self._projector_config)
 
         # Save checkpoint
-        self.save(self.vis_checkpoint)
+        self.save(self._vis_checkpoint)
 
         # Write labels info
         if labels is not None:

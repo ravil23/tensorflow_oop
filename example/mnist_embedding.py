@@ -14,22 +14,30 @@ from tensorflow_oop.embedding import *
 # Define model
 class MnistEmbedding(TFEmbedding):
     def inference(self, inputs, **kwargs):
+        # Get arguments
         input_size = self.inputs_shape[0]
         hidden_size = kwargs['hidden_size']
         output_size = self.outputs_shape[0]
+
+        # Hidden fully connected layer
         with tf.name_scope('hidden'):
             weights = tf.Variable(
                 tf.truncated_normal([input_size, hidden_size],
                                     stddev=1.0 / np.sqrt(float(input_size))))
             biases = tf.Variable(tf.zeros([hidden_size]))
             hidden = tf.nn.relu(tf.nn.xw_plus_b(inputs, weights, biases))
+
+        # Output fully connected layer
         with tf.name_scope('output'):
             weights = tf.Variable(
                 tf.truncated_normal([hidden_size, output_size],
                                     stddev=1.0 / np.sqrt(float(hidden_size))))
             biases = tf.Variable(tf.zeros([output_size]))
             outputs = tf.nn.xw_plus_b(hidden, weights, biases)
+        
+        # Normalize outputs
         embeddings = tf.nn.l2_normalize(outputs, 1)
+
         return embeddings
 
 def run(args):

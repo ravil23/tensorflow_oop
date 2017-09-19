@@ -107,41 +107,90 @@ class TestTFDataset(unittest.TestCase):
         batch = self.dataset1.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[1,2]])))
         self.assertEqual(batch.labels, None)
+        self.assertTrue(np.all(batch.data == self.dataset1.last_batch.data))
+        self.assertEqual(self.dataset1.last_batch.labels, None)
+
         batch = self.dataset1.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[3,4]])))
         self.assertEqual(batch.labels, None)
+        self.assertTrue(np.all(batch.data == self.dataset1.last_batch.data))
+        self.assertEqual(self.dataset1.last_batch.labels, None)
+
         batch = self.dataset1.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[5,6]])))
         self.assertEqual(batch.labels, None)
+        self.assertTrue(np.all(batch.data == self.dataset1.last_batch.data))
+        self.assertEqual(self.dataset1.last_batch.labels, None)
+
         batch = self.dataset1.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[1,2]])))
         self.assertEqual(batch.labels, None)
+        self.assertTrue(np.all(batch.data == self.dataset1.last_batch.data))
+        self.assertEqual(self.dataset1.last_batch.labels, None)
 
         # Test only labels
         batch = self.dataset2.next_batch()
         self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[1]])))
         self.assertEqual(batch.data, None)
+        self.assertTrue(np.all(batch.labels == self.dataset2.last_batch.labels))
+        self.assertEqual(self.dataset2.last_batch.data, None)
+
         batch = self.dataset2.next_batch()
         self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[2]])))
         self.assertEqual(batch.data, None)
+        self.assertTrue(np.all(batch.labels == self.dataset2.last_batch.labels))
+        self.assertEqual(self.dataset2.last_batch.data, None)
+
         batch = self.dataset2.next_batch()
         self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[3]])))
         self.assertEqual(batch.data, None)
+        self.assertTrue(np.all(batch.labels == self.dataset2.last_batch.labels))
+        self.assertEqual(self.dataset2.last_batch.data, None)
+
         batch = self.dataset2.next_batch()
         self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[1]])))
         self.assertEqual(batch.data, None)
+        self.assertTrue(np.all(batch.labels == self.dataset2.last_batch.labels))
+        self.assertEqual(self.dataset2.last_batch.data, None)
 
         # Test another batch size
         self.dataset3.set_batch_size(2)
         batch = self.dataset3.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[1,2],[3,4]])))
         self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[1],[2]])))
+        self.assertTrue(np.all(batch.data == self.dataset3.last_batch.data))
+        self.assertTrue(np.all(batch.labels == self.dataset3.last_batch.labels))
+
         batch = self.dataset3.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[5,6],[1,2]])))
         self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[3],[1]])))
+        self.assertTrue(np.all(batch.data == self.dataset3.last_batch.data))
+        self.assertTrue(np.all(batch.labels == self.dataset3.last_batch.labels))
+
         batch = self.dataset3.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[3,4],[5,6]])))
         self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[2],[3]])))
+        self.assertTrue(np.all(batch.data == self.dataset3.last_batch.data))
+        self.assertTrue(np.all(batch.labels == self.dataset3.last_batch.labels))
+
+    def test_full_batch(self):
+        with self.assertRaises(AssertionError):
+            self.empty.next_batch(0)
+
+        # Test only data
+        batch = self.dataset1.full_batch()
+        self.assertTrue(np.all(batch.data == self.dataset1.data))
+        self.assertEqual(batch.labels, None)
+
+        # Test only labels
+        batch = self.dataset2.full_batch()
+        self.assertTrue(np.all(batch.labels == self.dataset2.labels))
+        self.assertEqual(batch.data, None)
+
+        # Test another batch size
+        batch = self.dataset3.full_batch()
+        self.assertTrue(np.all(batch.data == self.dataset3.data))
+        self.assertTrue(np.all(batch.labels == self.dataset3.labels))
 
     def test_split(self):
         with self.assertRaises(AssertionError):

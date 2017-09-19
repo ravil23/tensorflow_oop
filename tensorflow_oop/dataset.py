@@ -43,7 +43,7 @@ class TFDataset(object):
     __slots__ = ['init', 'size',
                  'data', 'data_shape', 'data_ndim',
                  'labels', 'labels_shape', 'labels_ndim',
-                 'batch_size', 'batch_num',
+                 'batch_size', 'batch_num', 'last_batch',
                  'normalized', 'normalization_global',
                  'normalization_mean', 'normalization_std']
 
@@ -167,7 +167,13 @@ class TFDataset(object):
                                          self.labels[:last - self.size],
                                          axis=0)
         self.batch_num += 1
-        return TFBatch(data=batch_data, labels=batch_labels)
+        self.last_batch = TFBatch(data=batch_data, labels=batch_labels)
+        return self.last_batch
+
+    @check_initialization
+    def full_batch(self):
+        """Get full batch."""
+        return TFBatch(data=self.data, labels=self.labels)
 
     @check_initialization
     def iterbatches(self, count=None):

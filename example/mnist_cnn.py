@@ -14,19 +14,28 @@ from tensorflow_oop.classification import *
 # Define model
 class MnistCNN(TFClassifier):
     def inference(self, inputs, **kwargs):
+        # Get arguments
         input_size = self.inputs_shape[0]
         hidden_size = kwargs['hidden_size']
         output_size = self.outputs_shape[0]
         inputs = tf.reshape(inputs, shape=[-1, 28, 28, 1])
+
+        # First convolutional layer
         with tf.variable_scope('conv_1'):
             conv_1 = self.conv2d(inputs, [5, 5, 1, 32], [32])
             pool_1 = self.max_pool(conv_1)
+
+        # Second convolutional layer
         with tf.variable_scope('conv_2'):
             conv_2 = self.conv2d(pool_1, [5, 5, 32, 64], [64])
             pool_2 = self.max_pool(conv_2)
+
+        # Classification fully connected layer
         with tf.variable_scope('fc'):
             pool_2_flat = tf.reshape(pool_2, [-1, 7 * 7 * 64])
             fc_1 = self.fc(pool_2_flat, [7*7*64, hidden_size], [hidden_size])
+
+        # Output fully connected layer
         with tf.variable_scope('output'):
             outputs = self.fc(fc_1, [hidden_size, output_size], [output_size])
         return outputs
@@ -85,14 +94,11 @@ def run(args):
 
     # Evaluation
     if train_set is not None:
-        train_eval = model.evaluate(train_set)
-        print('Results on training set: %s' % train_eval)
+        model.evaluate_and_log(train_set.full_batch())
     if val_set is not None:
-        val_eval = model.evaluate(val_set)
-        print('Results on validation set: %s' % val_eval)
+        model.evaluate_and_log(val_set.full_batch())
     if test_set is not None:
-        test_eval = model.evaluate(test_set)
-        print('Results on testing set: %s' % test_eval)
+        model.evaluate_and_log(test_set.full_batch())
 
     if args.show:
         print('Showing test set...')

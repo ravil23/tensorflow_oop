@@ -30,13 +30,18 @@ class TFNeuralNetwork(object):
                  'inputs', 'targets', 'outputs',
                  'top_k_placeholder', 'top_k_outputs',
                  'loss', 'global_step',
-                 'fit_checkpoint', 'vis_checkpoint',
-                 'best_val_checkpoint', 'best_val_result', 'best_val_iteration',
-                 'sess', 'summary_writer',
-                 'projector_config',
-                 'kwargs', 'metrics']
+                 'sess',
+                 'kwargs', 'metrics',
+                 '_summary_writer', '_projector_config',
+                 '_best_val_checkpoint', '_best_val_result',
+                 '_best_val_iteration', '_best_val_key',
+                 '_fit_checkpoint', '_vis_checkpoint',
+                 '_iteration', '_iter_count',
+                 '_epoch', '_epoch_count']
 
     def __init__(self, log_dir, reset=True):
+        for attr in self.__slots__:
+            setattr(self, attr, None)
         self.log_dir = log_dir
         self.init = False
         self.loaded = False
@@ -48,13 +53,42 @@ class TFNeuralNetwork(object):
                         'eval_test': {}}
 
         # Checkpoint paths
-        self.fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
-        self.vis_checkpoint = os.path.join(self.log_dir, 'vis-checkpoint')
-        self.best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
+        self._fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
+        self._vis_checkpoint = os.path.join(self.log_dir, 'vis-checkpoint')
+        self._best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
 
         # Reset default graph if necessary
         if reset:
             tf.reset_default_graph()
+
+    def inference(self, inputs, **kwargs):
+        """Model inference.
+
+        Arguments:
+            inputs -- tensor of batch with inputs
+            kwargs -- dictionary of keyword arguments
+
+        Return:
+            outputs -- tensor of outputs layer
+
+        """
+        raise Exception('Inference function should be overwritten!')
+        return outputs
+
+    def loss_function(self, targets, outputs, **kwargs):
+        """Loss function.
+
+        Arguments:
+            targets -- tensor of batch with targets
+            outputs -- tensor of batch with outputs
+            kwargs -- dictionary of keyword arguments
+
+        Return:
+            loss -- tensorflow operation for minimization
+
+        """
+        raise Exception('Loss function should be overwritten!')
+        return loss
 
     def load(self, model_checkpoint_path=None):
         """Load checkpoint.
@@ -109,11 +143,11 @@ class TFNeuralNetwork(object):
         self.outputs_shape = self.outputs.shape.as_list()[1:]
 
         # Instantiate a SummaryWriter to output summaries and the Graph
-        self.summary_writer = tf.summary.FileWriter(self.log_dir,
+        self._summary_writer = tf.summary.FileWriter(self.log_dir,
                                                     self.sess.graph)
 
         # Projector config object
-        self.projector_config = projector.ProjectorConfig()
+        self._projector_config = projector.ProjectorConfig()
 
         # Enable initialization flag
         self.init = True
@@ -200,11 +234,11 @@ class TFNeuralNetwork(object):
                                      'log_train'])
 
         # Instantiate a SummaryWriter to output summaries and the Graph
-        self.summary_writer = tf.summary.FileWriter(self.log_dir,
+        self._summary_writer = tf.summary.FileWriter(self.log_dir,
                                                     self.sess.graph)
 
         # Projector config object
-        self.projector_config = projector.ProjectorConfig()
+        self._projector_config = projector.ProjectorConfig()
 
         # Run the Op to initialize the variables
         self.initialize_variables()
@@ -269,35 +303,6 @@ class TFNeuralNetwork(object):
             self.metrics[collection][key] = metric
         self.sess.run(tf.local_variables_initializer())
 
-    def inference(self, inputs, **kwargs):
-        """Model inference.
-
-        Arguments:
-            inputs -- tensor of batch with inputs
-            kwargs -- dictionary of keyword arguments
-
-        Return:
-            outputs -- tensor of outputs layer
-
-        """
-        raise Exception('Inference function should be overwritten!')
-        return outputs
-
-    def loss_function(self, targets, outputs, **kwargs):
-        """Loss function.
-
-        Arguments:
-            targets -- tensor of batch with targets
-            outputs -- tensor of batch with outputs
-            kwargs -- dictionary of keyword arguments
-
-        Return:
-            loss -- tensorflow operation for minimization
-
-        """
-        raise Exception('Loss function should be overwritten!')
-        return loss
-
     @check_initialization
     @check_fit_arguments
     def fit(self,
@@ -312,7 +317,7 @@ class TFNeuralNetwork(object):
             checkpoint_period=10000,
             evaluation_period=10000,
             max_gradient_norm=None,
-            best_val_metric_key=None):
+            best_val_key=None):
         """Train model.
 
         Arguments:
@@ -327,26 +332,24 @@ class TFNeuralNetwork(object):
             checkpoint_period -- iterations count between saving checkpoint
             evaluation_period -- iterations count between evaluation
             max_gradient_norm -- maximal gradient norm for clipping
-            best_val_metric_key -- metric key for saving best validation checkpoint
+            best_val_key -- metric key for saving best validation checkpoint
 
         """
         print('Start training...')
         start_fit_time = time.time()
 
-        # Get actual iter and epoch count
-        iter_count, epoch_count = self._get_actual_iter_epoch_count(
-            iter_count,
-            epoch_count,
-            train_set.size,
-            train_set.batch_size)
+        # Update actual iter and epoch count
+        self._get_actual_iter_epoch_count(iter_count, epoch_count,
+                                          train_set.size, train_set.batch_size)
 
         # Global iter step and epoch number
-        init_iteration = self.global_step.eval(session=self.sess)
-        epoch = init_iteration * train_set.batch_size // train_set.size
-        assert iter_count >= init_iteration, \
+        self._iteration = self.global_step.eval(session=self.sess)
+        self._epoch = self._iteration * train_set.batch_size // train_set.size
+        assert self._iter_count >= self._iteration, \
             '''Iteration count should be greater than init iteration:
-            iter_count = %s, init_iteration = %s''' % (iter_count, init_iteration)
-        if iter_count == init_iteration:
+            self._iter_count = %s, self._iteration = %s''' \
+            % (self._iter_count, self._iteration)
+        if self._iter_count == self._iteration:
             print('Init iteration is equal to iteration count.')
             return
 
@@ -354,8 +357,8 @@ class TFNeuralNetwork(object):
         train_op = self._get_train_op(optimizer, learning_rate, max_gradient_norm)
 
         # Print training options
-        self._print_training_options(epoch_count,
-                                     iter_count,
+        self._print_training_options(self._epoch_count,
+                                     self._iter_count,
                                      optimizer,
                                      learning_rate,
                                      train_set.batch_size,
@@ -365,69 +368,65 @@ class TFNeuralNetwork(object):
                                      checkpoint_period,
                                      evaluation_period,
                                      max_gradient_norm,
-                                     best_val_metric_key)
+                                     best_val_key)
 
         # Calculate initial result on validation set
-        if val_set is not None and best_val_metric_key is not None:
+        if val_set is not None and best_val_key is not None:
             print('Initial evaluation...')
-            val_metrics = self.evaluate_and_log(val_set, 'eval_validation', init_iteration)
-            self.best_val_iteration = init_iteration
-            self.best_val_result = val_metrics[best_val_metric_key]
+            self._best_val_key = best_val_key
+            self.evaluate_and_log(val_set.full_batch(), 'eval_validation')
 
         # Initial logging period time
-        start_period_time = time.time()
+        self._last_log_time = time.time()
 
         # Loop over all batches
-        for iteration in range(init_iteration + 1, iter_count + 1):
-            # Get current trained epoch and flags
-            epoch = iteration * train_set.batch_size // train_set.size
-            last_iteration_flag = iteration == iter_count
-            summarizing_flag = iteration % summarizing_period == 0 or last_iteration_flag
-            logging_flag     = iteration % logging_period     == 0 or last_iteration_flag
-            checkpoint_flag  = iteration % checkpoint_period  == 0 or last_iteration_flag
-            evaluation_flag  = iteration % evaluation_period  == 0 or last_iteration_flag
+        while self._iteration < self._iter_count:
+            # Get current iteration and epoch
+            self._iteration += 1
+            self._epoch = self._iteration * train_set.batch_size // train_set.size
+
+            # Calculate current iteration options
+            last_iteration_flag = self._iteration == self._iter_count
+            summarizing_flag = self._iteration % summarizing_period == 0 or last_iteration_flag
+            logging_flag     = self._iteration % logging_period     == 0 or last_iteration_flag
+            checkpoint_flag  = self._iteration % checkpoint_period  == 0 or last_iteration_flag
+            evaluation_flag  = self._iteration % evaluation_period  == 0 or last_iteration_flag
 
             # One training iteration
-            self._training_step(train_set, train_op, iteration, summarizing_flag)
+            self._training_step(train_set, train_op, summarizing_flag)
 
             # One validation iteration
             if val_set is not None:
-                self._validation_step(val_set, iteration, summarizing_flag)
+                self._validation_step(val_set, summarizing_flag)
 
-            # Print an overview periodically
-            if logging:
-                # Calculate time of last logging period
-                period_time = time.time() - start_period_time
-                start_period_time = time.time()
-
-                # Print logging info
-                self.evaluate_and_log(train_batch, 'log_train', iteration,
-                    epoch=epoch, epoch_count=epoch_count, period_time=period_time)
+            # Print training progress periodically
+            if logging_flag:
+                self.evaluate_and_log(train_set.last_batch, 'log_train')
 
             # Save a checkpoint the model periodically
             if checkpoint_flag:
                 print('Saving checkpoint periodically...')
-                self.save(self.fit_checkpoint, global_step=iteration)
+                self.save(self._fit_checkpoint, global_step=self._iteration)
 
             # Evaluate the model periodically
             if evaluation_flag:
                 print('Evaluation...')
-                self.evaluate_and_log(train_set, 'eval_train', iteration)
+                self.evaluate_and_log(train_set.full_batch(), 'eval_train')
 
                 # Eval on validation set if necessary
                 if val_set is not None:
-                    val_metrics = self.evaluate_and_log(val_set, 'eval_validation', iteration)
+                    self.evaluate_and_log(val_set.full_batch(), 'eval_validation')
 
-                    # Save best result on validation set if necessary
-                    if best_val_metric_key is not None:
-                        result = val_metrics[best_val_metric_key]
-                        if self.best_val_result is None or result > self.best_val_result:
-                            print('Saving checkpoint with best result on validation set...')
-                            self.save_best_on_validation(result, iteration)
-
-        self.summary_writer.flush()
+        self._summary_writer.flush()
         total_time = time.time() - start_fit_time
         print('Finish training iteration (total time %.3f sec).\n' % total_time)
+
+        if val_set is not None and best_val_key is not None:
+            print('Report by best result on validation set:')
+            print('%20s : %s' % ('best_val_key', self._best_val_key))
+            print('%20s : %s' % ('best_val_result', self._best_val_result))
+            print('%20s : %s' % ('best_val_iteration', self._best_val_iteration))
+            print('%20s : %s\n' % ('best_val_checkpoint', self._best_val_checkpoint))
 
     @check_initialization
     def fill_feed_dict(self, batch):
@@ -443,48 +442,8 @@ class TFNeuralNetwork(object):
         }
         return feed_dict
 
-    def _training_step(self, train_set, train_op, iteration, summarizing_flag):
-        """Run one training iteration.
-
-        Arguments:
-            train_set -- TFDataset object
-            train_op -- training operation
-            iteration -- number of training step
-            summarizing_flag -- boolean indicator of summarizing
-
-        """
-
-        # Get next validation batch
-        train_batch = train_set.next_batch()
-
-        # Produce this dataset over network
-        if summarizing_flag and len(self.metrics['batch_train']) > 0:
-            summary_op = tf.summary.merge_all('batch_train')
-            values = self.produce(train_set, train_batch, [summary_op, train_op])
-            self.summary_writer.add_summary(values[0], iteration)
-        else:
-            self.produce(train_set, train_batch, [train_op])
-
-    def _validation_step(self, val_set, iteration, summarizing_flag):
-        """Run one training iteration.
-
-        Arguments:
-            val_set -- TFDataset object
-            iteration -- number of training step
-            summarizing_flag -- boolean indicator of summarizing
-
-        """
-
-        if summarizing_flag and len(self.metrics['batch_validation']) > 0:
-            # Get next validation batch
-            val_batch = val_set.next_batch()
-
-            # Produce this dataset over network
-            summary_op = tf.summary.merge_all('batch_validation')
-            values, = self.produce(val_set, val_batch, [summary_op])
-            self.summary_writer.add_summary(values[0], iteration)
-
     @check_initialization
+    @check_produce_arguments
     def produce(self, dataset, batch, output_tensors):
         """Produce model on batch and return list of output tensors values.
 
@@ -508,75 +467,95 @@ class TFNeuralNetwork(object):
 
     @check_initialization
     @check_evaluate_arguments
-    def evaluate(self, data, collection='eval_test', iteration=None):
+    def evaluate(self, batch, collection='eval_test'):
         """Evaluate model.
 
         Arguments:
-            data -- batch or dataset of inputs
+            batch -- TFBatch object
             collection -- string value from ['batch_train',
                                              'batch_validation',
                                              'log_train',
                                              'eval_train',
                                              'eval_validation',
                                              'eval_test']
-            iteration -- training step number
 
         Return:
-            result -- metrics dictionary
+            metrics -- dictionary
 
         """
-        result = {}
+
+        # Init output values
+        metrics = {}
+
+        # Check if nothing to do
         if len(self.metrics[collection]) > 0:
-            # Calculate metrics values
+            # Get key and tensors
             metric_keys = list(self.metrics[collection].keys())
-            metric_values = list(self.metrics[collection].values())
-            feed_dict = self.fill_feed_dict(data)
-            estimates = self.sess.run(metric_values, feed_dict=feed_dict)
-            for i in range(len(self.metrics[collection])):
-                result[metric_keys[i]] = estimates[i]
+            metric_tensors = list(self.metrics[collection].values())
+            
+            # Calculate metrics values
+            feed_dict = self.fill_feed_dict(batch)
+            metric_values = self.sess.run(metric_tensors, feed_dict=feed_dict)
+            for i in range(len(metric_keys)):
+                metrics[metric_keys[i]] = metric_values[i]
 
             # Update the events file with evaluation summary
-            if iteration is not None and collection != 'log_train':
+            if collection != 'log_train':
                 summary_str = self.sess.run(tf.summary.merge_all(collection),
                                             feed_dict=feed_dict)
-                self.summary_writer.add_summary(summary_str, iteration)
+                self._summary_writer.add_summary(summary_str, self._iteration)
 
-        return result
+            # Save best result on validation set if necessary
+            if self._best_val_key is not None and collection == 'eval_validation':
+                result = metrics[self._best_val_key]
+                if self._best_val_result is None or result > self._best_val_result:
+                    print('Saving checkpoint with best result on validation set...')
+                    self.save_best_on_validation(result)
+
+        return metrics
 
     @check_initialization
     @check_evaluate_arguments
-    def evaluate_and_log(self, data, collection='eval_test', iteration=None, **kwargs):
+    def evaluate_and_log(self, batch, collection='eval_test'):
         """Evaluate model.
 
         Arguments:
-            data -- batch or dataset of inputs
+            batch -- TFBatch object
             collection -- string value from ['batch_train',
                                              'batch_validation',
                                              'log_train',
                                              'eval_train',
                                              'eval_validation',
                                              'eval_test']
-            iteration -- training step number
 
         Return:
-            metrics -- metrics dictionary
+            metrics -- dictionary
 
         """
 
         # Evaluate on current collection
         start_evaluation_time = time.time()
-        metrics = self.evaluate(data, collection, iteration)
+        metrics = self.evaluate(batch, collection)
         duration = time.time() - start_evaluation_time
 
         # Convert metrics to string
         metrics_str = '   '.join(['%s = %.6f' % (k, metrics[k]) for k in metrics])
 
         if collection == 'log_train':
+            # Calculate time of last logging period
+            period_time = time.time() - self._last_log_time
+            self._last_log_time = time.time()
+
+            # Log training process
             format_string = 'Iter %d / %d (epoch %d / %d):   %s   [%.3f sec]'
-            print(format_string % (iteration, kwargs['iter_count'],
-                                   kwargs['epoch'], kwargs['epoch_count'],
-                                   metrics_str, kwargs['period_time']))
+            print(format_string % (self._iteration,
+                                   self._iter_count,
+                                   self._epoch,
+                                   self._epoch_count,
+                                   metrics_str,
+                                   period_time))
         elif len(metrics) > 0:
+            # Log evaluation result
             format_string = 'Evaluation on [%s]:   %s   [%.3f sec]'
             print(format_string % (collection, metrics_str, duration))
         return metrics
@@ -607,16 +586,21 @@ class TFNeuralNetwork(object):
         saver.restore(self.sess, filename)
 
     @check_initialization
-    def save_best_on_validation(self, result, iteration):
-        """Save checkpoint with best result on validation set."""
-        self.best_val_result = result
-        self.best_val_iteration = iteration
-        self.save(self.best_val_checkpoint)
+    def save_best_on_validation(self, result):
+        """Save checkpoint with best result on validation set.
+
+        Arguments:
+            result -- new best validation result
+
+        """
+        self._best_val_result = result
+        self._best_val_iteration = self._iteration
+        self.save(self._best_val_checkpoint)
 
     @check_initialization
     def restore_best_on_validation(self):
         """Restore checkpoint with best result on validation set."""
-        self.restore(self.best_val_checkpoint)
+        self.restore(self._best_val_checkpoint)
 
     @check_initialization
     @check_inputs_values
@@ -655,7 +639,7 @@ class TFNeuralNetwork(object):
     def __str__(self):
         string = 'TFNeuralNetwork object:\n'
         for attr in self.__slots__:
-            if hasattr(self, attr):
+            if hasattr(self, attr) and attr[0] != '_':
                 if attr == 'metrics':
                     buf = ''
                     collections = sorted(list(self.metrics.keys()))
@@ -682,10 +666,6 @@ class TFNeuralNetwork(object):
             dataset_size -- length of dataset
             batch_size -- length of batch
 
-        Return:
-            iter_count -- actual iteration count
-            epoch_count -- actual epoch count
-
         """
         if epoch_count is not None:
             iter_count_by_epoch = (dataset_size * epoch_count) // batch_size
@@ -697,7 +677,8 @@ class TFNeuralNetwork(object):
                 iter_count = iter_count_by_epoch
         else:
             epoch_count = (iter_count * batch_size) // dataset_size
-        return iter_count, epoch_count
+        self._iter_count = iter_count
+        self._epoch_count = epoch_count
 
     def _get_train_op(self, optimizer, learning_rate, max_gradient_norm):
         """Get training operation.
@@ -785,7 +766,7 @@ class TFNeuralNetwork(object):
                                 checkpoint_period,
                                 evaluation_period,
                                 max_gradient_norm,
-                                best_val_metric_key):
+                                best_val_key):
         """Formatted print training options."""
         if epoch_count:
             print('%20s: %s' % ('epoch_count', epoch_count))
@@ -801,11 +782,52 @@ class TFNeuralNetwork(object):
         print('%20s: %s' % ('evaluation_period', evaluation_period))
         if max_gradient_norm is not None:
             print('%20s: %s' % ('max_gradient_norm', max_gradient_norm))
-        if best_val_metric_key is not None:
-            print('%20s: %s' % ('best_val_metric_key', best_val_metric_key))
+        if best_val_key is not None:
+            print('%20s: %s' % ('best_val_key', best_val_key))
         buf = ''
         collections = sorted(list(self.metrics.keys()))
         for collection in collections:
             keys = list(self.metrics[collection].keys())
             buf += '%30s: %s\n' % (collection, sorted(keys))
         print('%20s:\n%s' % ('metrics', buf))
+
+    def _training_step(self, train_set, train_op, summarizing_flag):
+        """Run one training iteration.
+
+        Arguments:
+            train_set -- TFDataset object
+            train_op -- training operation
+            summarizing_flag -- boolean indicator of summarizing
+
+        """
+
+        # Get next training batch
+        train_batch = train_set.next_batch()
+
+        # Produce this dataset over network
+        if summarizing_flag and len(self.metrics['batch_train']) > 0:
+            summary_op = tf.summary.merge_all('batch_train')
+            values = self.produce(train_set, train_batch, [summary_op, train_op])
+            summary_str = values[0]
+            self._summary_writer.add_summary(summary_str, self._iteration)
+        else:
+            self.produce(train_set, train_batch, [train_op])
+
+    def _validation_step(self, val_set, summarizing_flag):
+        """Run one training iteration.
+
+        Arguments:
+            val_set -- TFDataset object
+            summarizing_flag -- boolean indicator of summarizing
+
+        """
+
+        if summarizing_flag and len(self.metrics['batch_validation']) > 0:
+            # Get next validation batch
+            val_batch = val_set.next_batch()
+
+            # Produce this dataset over network
+            summary_op = tf.summary.merge_all('batch_validation')
+            values = self.produce(val_set, val_batch, [summary_op])
+            summary_str = values[0]
+            self._summary_writer.add_summary(summary_str, self._iteration)
