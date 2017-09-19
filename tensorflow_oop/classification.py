@@ -30,7 +30,6 @@ class TFClassifier(TFNeuralNetwork):
 
         # Get probability operation
         self.softmax = self.sess.graph.get_tensor_by_name('softmax:0')
-        accuracy = self.sess.graph.get_tensor_by_name('accuracy:0')
 
     def initialize(self,
                    inputs_shape,

@@ -116,8 +116,15 @@ class TFBagOfWords(object):
         sorted_words_counter = sorted(self.words_counter.items(),
                                       key=operator.itemgetter(1),
                                       reverse=True)
-        string += '%20s:\n%s\n' % ('words_counter', sorted_words_counter)
-        string += '%20s:\n%s\n' % ('dictionary', self.dictionary)
+        string += '%20s:\n%s\n...\n%s\n' % ('words_counter',
+            '\n'.join([str(elem) for elem in sorted_words_counter[:10]]),
+            '\n'.join([str(elem) for elem in sorted_words_counter[-10:]]))
+        sorted_dictionary = sorted(self.dictionary.items(),
+                                   key=operator.itemgetter(0),
+                                   reverse=False)
+        string += '%20s:\n%s\n...\n%s\n' % ('dictionary',
+            '\n'.join([str(elem) for elem in sorted_dictionary[:10]]),
+            '\n'.join([str(elem) for elem in sorted_dictionary[-10:]]))
         return string[:-1]
 
     def _preprocessing(self, old_text):

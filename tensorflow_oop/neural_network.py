@@ -267,6 +267,7 @@ class TFNeuralNetwork(object):
                          collections=[collection])
             self.sess.graph.add_to_collection('metric_' + collection, metric)
             self.metrics[collection][key] = metric
+        self.sess.run(tf.local_variables_initializer())
 
     def inference(self, inputs, **kwargs):
         """Model inference.
