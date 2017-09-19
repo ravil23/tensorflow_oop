@@ -36,7 +36,7 @@ class TFNeuralNetwork(object):
                  'projector_config',
                  'kwargs', 'metrics']
 
-    def __init__(self, log_dir):
+    def __init__(self, log_dir, reset=True):
         self.log_dir = log_dir
         self.init = False
         self.loaded = False
@@ -46,9 +46,15 @@ class TFNeuralNetwork(object):
                         'eval_train': {},
                         'eval_validation': {},
                         'eval_test': {}}
+
+        # Checkpoint paths
         self.fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
         self.vis_checkpoint = os.path.join(self.log_dir, 'vis-checkpoint')
         self.best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
+
+        # Reset default graph if necessary
+        if reset:
+            tf.reset_default_graph()
 
     def load(self, model_checkpoint_path=None):
         """Load checkpoint.
@@ -121,7 +127,7 @@ class TFNeuralNetwork(object):
                    inputs_type=tf.float32,
                    targets_type=tf.float32,
                    outputs_type=tf.float32,
-                   reset=True,
+                   clear_log_dir=False,
                    **kwargs):
         """Initialize model.
 
@@ -132,16 +138,14 @@ class TFNeuralNetwork(object):
             inputs_type -- type of inputs layer
             targets_type -- type of targets layer
             outputs_type -- type of outputs layer
-            reset -- indicator of clearing default graph and logging directory
+            clear_log_dir -- indicator of clearing logging directory
             kwargs -- dictionary of keyword arguments
 
         """
         print('Start initializing model...')
 
         # Reset if necessary
-        if reset:
-            tf.reset_default_graph()
-
+        if clear_log_dir:
             # Clean TensorBoard logging directory
             if tf.gfile.Exists(self.log_dir):
                 tf.gfile.DeleteRecursively(self.log_dir)
@@ -203,12 +207,17 @@ class TFNeuralNetwork(object):
         self.projector_config = projector.ProjectorConfig()
 
         # Run the Op to initialize the variables
-        self.sess.run(tf.global_variables_initializer())
+        self.initialize_variables()
 
         # Enable initialization flag
         self.init = True
 
         print('Finish initializing model.')
+
+    def initialize_variables(self):
+        """Initialize global and local variables."""
+        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.local_variables_initializer())
 
     def add_metric(self,
                    metric,
@@ -331,14 +340,13 @@ class TFNeuralNetwork(object):
             train_set.batch_size)
 
         # Global iter step and epoch number
-        iteration = self.global_step.eval(session=self.sess)
-        epoch = iteration * train_set.batch_size // train_set.size
-        batch_count = iter_count - iteration
-        assert batch_count >= 0, \
-            '''Iteration count should be greater than current iteration:
-            iter_count = %s, iteration = %s''' % (iter_count, iteration)
-        if batch_count == 0:
-            print('Current iteration is equal to iteration count.')
+        init_iteration = self.global_step.eval(session=self.sess)
+        epoch = init_iteration * train_set.batch_size // train_set.size
+        assert iter_count >= init_iteration, \
+            '''Iteration count should be greater than init iteration:
+            iter_count = %s, init_iteration = %s''' % (iter_count, init_iteration)
+        if iter_count == init_iteration:
+            print('Init iteration is equal to iteration count.')
             return
 
         # Get training operation
@@ -358,96 +366,69 @@ class TFNeuralNetwork(object):
                                      max_gradient_norm,
                                      best_val_metric_key)
 
-        # Start the training loop
-        iter_times = []
-        start_iter_time = time.time()
-        last_logging_iter = 0
-        
         # Calculate initial result on validation set
         if val_set is not None and best_val_metric_key is not None:
             print('Initial evaluation...')
-            self.best_val_iteration = self.global_step.eval(session=self.sess)
-            val_metrics = self.evaluate_and_log(val_set,
-                                                'eval_validation',
-                                                self.best_val_iteration)
+            val_metrics = self.evaluate_and_log(val_set, 'eval_validation', init_iteration)
+            self.best_val_iteration = init_iteration
             self.best_val_result = val_metrics[best_val_metric_key]
 
+        # Initial logging period time
+        start_period_time = time.time()
+
         # Loop over all batches
-        for train_batch in train_set.iterbatches(batch_count):
-            # One training iteration
-            self.training_step(train_set, train_batch, train_op)
-
-            # Save iter time
-            iter_times.append(time.time() - start_iter_time)
-            start_iter_time = time.time()
-
-            # Get current trained iter and epoch
-            iteration = self.global_step.eval(session=self.sess)
+        for iteration in range(init_iteration + 1, iter_count + 1):
+            # Get current trained epoch and flags
             epoch = iteration * train_set.batch_size // train_set.size
+            last_iteration_flag = iteration == iter_count
+            summarizing_flag = iteration % summarizing_period == 0 or last_iteration_flag
+            logging_flag     = iteration % logging_period     == 0 or last_iteration_flag
+            checkpoint_flag  = iteration % checkpoint_period  == 0 or last_iteration_flag
+            evaluation_flag  = iteration % evaluation_period  == 0 or last_iteration_flag
 
-            # Write the summaries periodically
-            if iteration % summarizing_period == 0 or iteration == iter_count:
-                # Update the events file with training summary on batch
-                train_feed_dict = self.fill_feed_dict(train_batch)
-                self._write_summaries('batch_train', train_feed_dict, iteration)
+            # One training iteration
+            self._training_step(train_set, train_op, iteration, summarizing_flag)
 
-                # Update the events file with validation summary on batch
-                if val_set is not None and \
-                   len(self.metrics['batch_validation']) > 0:
-                    val_batch = val_set.next_batch()
-                    val_feed_dict = self.fill_feed_dict(val_batch)
-                    self._write_summaries('batch_validation', val_feed_dict, iteration)
+            # One validation iteration
+            if val_set is not None:
+                self._validation_step(val_set, iteration, summarizing_flag)
 
             # Print an overview periodically
-            if iteration % logging_period == 0 or iteration == iter_count:
-                # Calculate time of last period
-                duration = np.sum(iter_times[-logging_period:])
+            if logging:
+                # Calculate time of last logging period
+                period_time = time.time() - start_period_time
+                start_period_time = time.time()
 
                 # Print logging info
-                metrics = self.evaluate(train_batch, 'log_train')
-                metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
-                format_string = 'Iter %d / %d (epoch %d / %d):   %s   [%.3f sec]'
-                print(format_string % (iteration, iter_count,
-                                       epoch, epoch_count,
-                                       '   '.join(metrics_list),
-                                       duration))
+                self.evaluate_and_log(train_batch, 'log_train', iteration,
+                    epoch=epoch, epoch_count=epoch_count, period_time=period_time)
 
             # Save a checkpoint the model periodically
-            if (checkpoint_period is not None and \
-               iteration % checkpoint_period == 0) or \
-               iteration == iter_count:
+            if checkpoint_flag:
                 print('Saving checkpoint periodically...')
                 self.save(self.fit_checkpoint, global_step=iteration)
 
             # Evaluate the model periodically
-            if (evaluation_period is not None and \
-               iteration % evaluation_period == 0) or \
-               iteration == iter_count:
+            if evaluation_flag:
                 print('Evaluation...')
-
-                # Eval on training set
                 self.evaluate_and_log(train_set, 'eval_train', iteration)
 
                 # Eval on validation set if necessary
-                if val_set is not None and \
-                   len(self.metrics['eval_validation']) > 0:
-                    val_metrics = self.evaluate_and_log(val_set,
-                                                        'eval_validation',
-                                                        iteration)
+                if val_set is not None:
+                    val_metrics = self.evaluate_and_log(val_set, 'eval_validation', iteration)
 
                     # Save best result on validation set if necessary
                     if best_val_metric_key is not None:
-                        if self.best_val_result is None or \
-                           val_metrics[best_val_metric_key] > self.best_val_result:
-                            self.best_val_result = val_metrics[best_val_metric_key]
-                            self.best_val_iteration = iteration
+                        result = val_metrics[best_val_metric_key]
+                        if self.best_val_result is None or result > self.best_val_result:
                             print('Saving checkpoint with best result on validation set...')
-                            self.save(self.best_val_checkpoint)
+                            self.save_best_on_validation(result, iteration)
 
         self.summary_writer.flush()
         total_time = time.time() - start_fit_time
         print('Finish training iteration (total time %.3f sec).\n' % total_time)
 
+    @check_initialization
     def fill_feed_dict(self, batch):
         """Get filled feed dictionary for batch.
 
@@ -461,20 +442,68 @@ class TFNeuralNetwork(object):
         }
         return feed_dict
 
-    def training_step(self, train_set, train_batch, train_op):
+    def _training_step(self, train_set, train_op, iteration, summarizing_flag):
         """Run one training iteration.
 
         Arguments:
-            train_set -- training dataset
-            train_batch -- batch of inputs
+            train_set -- TFDataset object
             train_op -- training operation
+            iteration -- number of training step
+            summarizing_flag -- boolean indicator of summarizing
 
         """
-        # Fill feed dict
-        feed_dict = self.fill_feed_dict(train_batch)
 
-        # Run one step of the model training
-        self.sess.run(train_op, feed_dict=feed_dict)
+        # Get next validation batch
+        train_batch = train_set.next_batch()
+
+        # Produce this dataset over network
+        if summarizing_flag and len(self.metrics['batch_train']) > 0:
+            summary_op = tf.summary.merge_all('batch_train')
+            values = self.produce(train_set, train_batch, [summary_op, train_op])
+            self.summary_writer.add_summary(values[0], iteration)
+        else:
+            self.produce(train_set, train_batch, [train_op])
+
+    def _validation_step(self, val_set, iteration, summarizing_flag):
+        """Run one training iteration.
+
+        Arguments:
+            val_set -- TFDataset object
+            iteration -- number of training step
+            summarizing_flag -- boolean indicator of summarizing
+
+        """
+
+        if summarizing_flag and len(self.metrics['batch_validation']) > 0:
+            # Get next validation batch
+            val_batch = val_set.next_batch()
+
+            # Produce this dataset over network
+            summary_op = tf.summary.merge_all('batch_validation')
+            values, = self.produce(val_set, val_batch, [summary_op])
+            self.summary_writer.add_summary(values[0], iteration)
+
+    @check_initialization
+    def produce(self, dataset, batch, output_tensors):
+        """Produce model on batch and return list of output tensors values.
+
+        Arguments:
+            dataset -- TFDataset object
+            batch -- TFBatch object
+            output_tensors -- list of output tensors
+
+        Return:
+            output_values -- list of output tensors values
+
+        """
+
+        # Fill feed dict
+        feed_dict = self.fill_feed_dict(batch)
+
+        # Run one step of the model
+        output_values = self.sess.run(output_tensors, feed_dict=feed_dict)
+
+        return output_values
 
     @check_initialization
     @check_evaluate_arguments
@@ -506,14 +535,16 @@ class TFNeuralNetwork(object):
                 result[metric_keys[i]] = estimates[i]
 
             # Update the events file with evaluation summary
-            if iteration is not None:
-                self._write_summaries(collection, feed_dict, iteration)
+            if iteration is not None and collection != 'log_train':
+                summary_str = self.sess.run(tf.summary.merge_all(collection),
+                                            feed_dict=feed_dict)
+                self.summary_writer.add_summary(summary_str, iteration)
 
         return result
 
     @check_initialization
     @check_evaluate_arguments
-    def evaluate_and_log(self, data, collection='eval_test', iteration=None):
+    def evaluate_and_log(self, data, collection='eval_test', iteration=None, **kwargs):
         """Evaluate model.
 
         Arguments:
@@ -530,15 +561,23 @@ class TFNeuralNetwork(object):
             metrics -- metrics dictionary
 
         """
+
+        # Evaluate on current collection
         start_evaluation_time = time.time()
         metrics = self.evaluate(data, collection, iteration)
-        if len(metrics) > 0:
-            metrics_list = ['%s = %.6f' % (k, metrics[k]) for k in metrics]
-            duration = time.time() - start_evaluation_time
+        duration = time.time() - start_evaluation_time
+
+        # Convert metrics to string
+        metrics_str = '   '.join(['%s = %.6f' % (k, metrics[k]) for k in metrics])
+
+        if collection == 'log_train':
+            format_string = 'Iter %d / %d (epoch %d / %d):   %s   [%.3f sec]'
+            print(format_string % (iteration, kwargs['iter_count'],
+                                   kwargs['epoch'], kwargs['epoch_count'],
+                                   metrics_str, kwargs['period_time']))
+        elif len(metrics) > 0:
             format_string = 'Evaluation on [%s]:   %s   [%.3f sec]'
-            print(format_string % (collection,
-                                   '   '.join(metrics_list),
-                                   duration))
+            print(format_string % (collection, metrics_str, duration))
         return metrics
 
     @check_initialization
@@ -565,6 +604,13 @@ class TFNeuralNetwork(object):
         """
         saver = tf.train.Saver(max_to_keep=None)
         saver.restore(self.sess, filename)
+
+    @check_initialization
+    def save_best_on_validation(self, result, iteration):
+        """Save checkpoint with best result on validation set."""
+        self.best_val_result = result
+        self.best_val_iteration = iteration
+        self.save(self.best_val_checkpoint)
 
     @check_initialization
     def restore_best_on_validation(self):
@@ -721,23 +767,10 @@ class TFNeuralNetwork(object):
                                                  name='train_op')
 
             # Run the Op to initialize the variables
-            self.sess.run(tf.global_variables_initializer())
+            self.initialize_variables()
         else:
             train_op = self.sess.graph.get_operation_by_name('train_op')
         return train_op
-
-    def _write_summaries(self, collection, feed_dict, iteration):
-        """Write summaries to TensorBoard.
-
-        Arguments:
-            collection -- summaries collection name
-            feed_dict -- dictionary of placeholder values
-            iteration -- training step number
-
-        """
-        summary_str = self.sess.run(tf.summary.merge_all(collection),
-                                    feed_dict=feed_dict)
-        self.summary_writer.add_summary(summary_str, iteration)
 
     def _print_training_options(self,
                                 epoch_count,
