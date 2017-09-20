@@ -155,6 +155,36 @@ def check_evaluate_arguments(function):
     return wrapper
 
 
+def check_add_metric_arguments(function):
+    """Decorator for check add metric arguments."""
+    def wrapper(self, metric, collections, *args, **kwargs):
+        assert isinstance(metric, (tf.Tensor, tuple, list)), \
+            '''Metric should be tf.Tensor, tuple or list:
+            type(metric) = %s''' % type(metric)
+        if isinstance(metric, (tuple, list)):
+            assert len(metric) == 2, \
+                '''If metric is tuple or list, its should contain two elemets:
+                len(metric) = %s''' % len(metric)
+        for collection in collections:
+            assert collection in ['batch_train',
+                                  'batch_validation',
+                                  'log_train',
+                                  'eval_train',
+                                  'eval_validation',
+                                  'eval_test'], \
+                '''Collections should be only from list
+                ['batch_train',
+                 'batch_validation',
+                 'log_train',
+                 'eval_train',
+                 'eval_validation',
+                 'eval_test']:
+                collection = %s''' % collection
+
+        return function(self, metric, collections, *args, **kwargs)
+    return wrapper
+
+
 def check_produce_arguments(function):
     """Decorator for check produce arguments."""
     def wrapper(self, dataset, batch, output_tensors, *args, **kwargs):
