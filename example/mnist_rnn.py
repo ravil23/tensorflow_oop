@@ -81,11 +81,11 @@ def run(args):
     
     # Evaluation
     if train_set is not None:
-        model.evaluate_and_log(train_set.full_batch())
+        model.evaluate_and_log(train_set)
     if val_set is not None:
-        model.evaluate_and_log(val_set.full_batch())
+        model.evaluate_and_log(val_set)
     if test_set is not None:
-        model.evaluate_and_log(test_set.full_batch())
+        model.evaluate_and_log(test_set))
 
     if args.show:
         print('Showing test set...')

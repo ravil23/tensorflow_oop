@@ -129,10 +129,14 @@ class TFEmbedding(TFNeuralNetwork):
                                                              embedding_neg)
 
         # Add centroid distance metric
-        self.add_metric(tf.identity(centroid_pos_dist, 'centroid_pos_dist'), collections=['batch_train'])
-        self.add_metric(tf.identity(centroid_neg_dist, 'centroid_neg_dist'), collections=['batch_train'])
-        self.add_metric(tf.reduce_mean(centroid_pos_dist, name='mean_centroid_pos_dist'), collections=['batch_train'])
-        self.add_metric(tf.reduce_mean(centroid_neg_dist, name='mean_centroid_neg_dist'), collections=['batch_train'])
+        self.add_metric(tf.identity(centroid_pos_dist, 'centroid_pos_dist'),
+                        collections=['batch_train'])
+        self.add_metric(tf.identity(centroid_neg_dist, 'centroid_neg_dist'),
+                        collections=['batch_train'])
+        self.add_metric(tf.reduce_mean(centroid_pos_dist, name='mean_centroid_pos_dist'),
+                        collections=['batch_train'])
+        self.add_metric(tf.reduce_mean(centroid_neg_dist, name='mean_centroid_neg_dist'),
+                        collections=['batch_train'])
 
         def max_fscore(pos_dist, neg_dist):
             """Centroid binary classification fscore."""
@@ -219,7 +223,7 @@ class TFEmbedding(TFNeuralNetwork):
         in_mask = losses >= margin
 
         # Add triplets count metric
-        triplets_count_all = tf.size(losses, out_type=tf.float32, name='triplets_count_all')
+        triplets_count_all = tf.cast(tf.size(losses), tf.float32, name='triplets_count_all')
         self.add_metric(triplets_count_all, collections=['batch_train'])
 
         triplets_portion_out = tf.divide(tf.count_nonzero(out_mask, dtype=tf.float32),

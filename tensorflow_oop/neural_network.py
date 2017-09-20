@@ -46,6 +46,7 @@ class TFNeuralNetwork(object):
         self.log_dir = log_dir
         self.init = False
         self.loaded = False
+        self.kwargs = {}
         self.metrics = {'batch_train': {},
                         'batch_validation': {},
                         'log_train': {},
@@ -179,7 +180,7 @@ class TFNeuralNetwork(object):
                    inputs_type=tf.float32,
                    targets_type=tf.float32,
                    outputs_type=tf.float32,
-                   clear_log_dir=False,
+                   clear_log_dir=True,
                    **kwargs):
         """Initialize model.
 
@@ -287,23 +288,19 @@ class TFNeuralNetwork(object):
 
         """
 
-        # Get metric tensor and operation and its size
+        # Get metric tensor and operation
         if isinstance(metric, tf.Tensor):
             update_op = None
         else:
             metric, update_op = metric
-        metric_size = tf.size(metric).eval(session=self.sess)
-
-        # Delete all dimensions for scalar tensor
-        if metric_size == 1 and len(metric.shape) != 0:
-            metric = tf.reshape(metric, [])
 
         # Parse metric key
         if key is None:
             key = self._basename_tensor(metric)
 
         # Auto detect summary type
-        if metric_size == 1:
+        metric_rank = tf.rank(metric).eval(session=self.sess)
+        if metric_rank == 0:
             summary_type = tf.summary.scalar
         else:
             summary_type = tf.summary.histogram
@@ -512,6 +509,9 @@ class TFNeuralNetwork(object):
             metrics -- dictionary
 
         """
+
+        if len(self.metrics[collection]) == 0:
+            return {}
 
         # Reset local metric tickers
         self.sess.run(self._local_variables_initializer)
