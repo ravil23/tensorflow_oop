@@ -69,7 +69,8 @@ class TFTripletset(TFDataset):
         batch_data = np.vstack([positives, negatives])
         batch_labels = np.append(np.zeros(len(positives)),
                                  np.ones(len(negatives)))
-        return TFBatch(data=batch_data, labels=batch_labels)
+        self.last_batch = TFBatch(data=batch_data, labels=batch_labels)
+        return self.last_batch
 
 class TFEmbedding(TFNeuralNetwork):
 
@@ -89,7 +90,6 @@ class TFEmbedding(TFNeuralNetwork):
                    outputs_shape,
                    inputs_type=tf.float32,
                    outputs_type=tf.float32,
-                   reset=True,
                    **kwargs):
         """Initialize model.
 
@@ -98,7 +98,6 @@ class TFEmbedding(TFNeuralNetwork):
             outputs_shape -- shape of outputs layer
             inputs_type -- type of inputs layer
             outputs_type -- type of outputs layer
-            reset -- indicator of clearing default graph and logging directory
             kwargs -- dictionary of keyword arguments
 
         """
@@ -108,7 +107,6 @@ class TFEmbedding(TFNeuralNetwork):
                                             inputs_type=inputs_type,
                                             targets_type=tf.int32,
                                             outputs_type=outputs_type,
-                                            reset=reset,
                                             **kwargs)
 
         def centroid_dist(embedding_pos, embedding_neg):
@@ -299,7 +297,7 @@ class TFEmbedding(TFNeuralNetwork):
             embed.metadata_path = os.path.join(
                 self.log_dir,
                 embed.tensor_name + '_metadata.tsv')
-        projector.visualize_embeddings(self.summary_writer,
+        projector.visualize_embeddings(self._summary_writer,
                                        self._projector_config)
 
         # Save checkpoint

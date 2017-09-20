@@ -301,7 +301,6 @@ class TFNeuralNetwork(object):
                          collections=[collection])
             self.sess.graph.add_to_collection('metric_' + collection, metric)
             self.metrics[collection][key] = metric
-        self.sess.run(tf.local_variables_initializer())
 
     @check_initialization
     @check_fit_arguments
@@ -374,7 +373,7 @@ class TFNeuralNetwork(object):
         if val_set is not None and best_val_key is not None:
             print('Initial evaluation...')
             self._best_val_key = best_val_key
-            self.evaluate_and_log(val_set.full_batch(), 'eval_validation')
+            self.evaluate_and_log(val_set, 'eval_validation')
 
         # Initial logging period time
         self._last_log_time = time.time()
@@ -393,15 +392,11 @@ class TFNeuralNetwork(object):
             evaluation_flag  = self._iteration % evaluation_period  == 0 or last_iteration_flag
 
             # One training iteration
-            self._training_step(train_set, train_op, summarizing_flag)
+            self._training_step(train_set, train_op, summarizing_flag, logging_flag)
 
             # One validation iteration
             if val_set is not None:
                 self._validation_step(val_set, summarizing_flag)
-
-            # Print training progress periodically
-            if logging_flag:
-                self.evaluate_and_log(train_set.last_batch, 'log_train')
 
             # Save a checkpoint the model periodically
             if checkpoint_flag:
@@ -411,11 +406,11 @@ class TFNeuralNetwork(object):
             # Evaluate the model periodically
             if evaluation_flag:
                 print('Evaluation...')
-                self.evaluate_and_log(train_set.full_batch(), 'eval_train')
+                self.evaluate_and_log(train_set, 'eval_train')
 
                 # Eval on validation set if necessary
                 if val_set is not None:
-                    self.evaluate_and_log(val_set.full_batch(), 'eval_validation')
+                    self.evaluate_and_log(val_set, 'eval_validation')
 
         self._summary_writer.flush()
         total_time = time.time() - start_fit_time
@@ -467,15 +462,12 @@ class TFNeuralNetwork(object):
 
     @check_initialization
     @check_evaluate_arguments
-    def evaluate(self, batch, collection='eval_test'):
+    def evaluate(self, dataset, collection='eval_test'):
         """Evaluate model.
 
         Arguments:
-            batch -- TFBatch object
-            collection -- string value from ['batch_train',
-                                             'batch_validation',
-                                             'log_train',
-                                             'eval_train',
+            dataset -- TFDataset object
+            collection -- string value from ['eval_train',
                                              'eval_validation',
                                              'eval_test']
 
@@ -483,6 +475,9 @@ class TFNeuralNetwork(object):
             metrics -- dictionary
 
         """
+
+        # Reset local metric tickers
+        self.sess.run(tf.local_variables_initializer())
 
         # Init output values
         metrics = {}
@@ -492,18 +487,22 @@ class TFNeuralNetwork(object):
             # Get key and tensors
             metric_keys = list(self.metrics[collection].keys())
             metric_tensors = list(self.metrics[collection].values())
-            
+            summary_op = tf.summary.merge_all(collection)
+            output_tensors = [summary_op] + metric_tensors
+
             # Calculate metrics values
-            feed_dict = self.fill_feed_dict(batch)
-            metric_values = self.sess.run(metric_tensors, feed_dict=feed_dict)
-            for i in range(len(metric_keys)):
-                metrics[metric_keys[i]] = metric_values[i]
+            try:
+                batch = dataset.full_batch()
+                values = self.produce(dataset, batch, output_tensors)
+                summary_str = values[0]
+                metric_values = values[1:]
+                for i in range(len(metric_keys)):
+                    metrics[metric_keys[i]] = metric_values[i]
+            except:
+                print('Error in validation Dataset by full batch!')
 
             # Update the events file with evaluation summary
-            if collection != 'log_train':
-                summary_str = self.sess.run(tf.summary.merge_all(collection),
-                                            feed_dict=feed_dict)
-                self._summary_writer.add_summary(summary_str, self._iteration)
+            self._summary_writer.add_summary(summary_str, self._iteration)
 
             # Save best result on validation set if necessary
             if self._best_val_key is not None and collection == 'eval_validation':
@@ -516,15 +515,12 @@ class TFNeuralNetwork(object):
 
     @check_initialization
     @check_evaluate_arguments
-    def evaluate_and_log(self, batch, collection='eval_test'):
+    def evaluate_and_log(self, dataset, collection='eval_test'):
         """Evaluate model.
 
         Arguments:
-            batch -- TFBatch object
-            collection -- string value from ['batch_train',
-                                             'batch_validation',
-                                             'log_train',
-                                             'eval_train',
+            dataset -- TFDataset object
+            collection -- string value from ['eval_train',
                                              'eval_validation',
                                              'eval_test']
 
@@ -535,26 +531,13 @@ class TFNeuralNetwork(object):
 
         # Evaluate on current collection
         start_evaluation_time = time.time()
-        metrics = self.evaluate(batch, collection)
+        metrics = self.evaluate(dataset, collection)
         duration = time.time() - start_evaluation_time
 
-        # Convert metrics to string
-        metrics_str = '   '.join(['%s = %.6f' % (k, metrics[k]) for k in metrics])
+        if len(metrics) > 0:
+            # Convert metrics to string
+            metrics_str = '   '.join(['%s = %.6f' % (k, metrics[k]) for k in metrics])
 
-        if collection == 'log_train':
-            # Calculate time of last logging period
-            period_time = time.time() - self._last_log_time
-            self._last_log_time = time.time()
-
-            # Log training process
-            format_string = 'Iter %d / %d (epoch %d / %d):   %s   [%.3f sec]'
-            print(format_string % (self._iteration,
-                                   self._iter_count,
-                                   self._epoch,
-                                   self._epoch_count,
-                                   metrics_str,
-                                   period_time))
-        elif len(metrics) > 0:
             # Log evaluation result
             format_string = 'Evaluation on [%s]:   %s   [%.3f sec]'
             print(format_string % (collection, metrics_str, duration))
@@ -791,27 +774,70 @@ class TFNeuralNetwork(object):
             buf += '%30s: %s\n' % (collection, sorted(keys))
         print('%20s:\n%s' % ('metrics', buf))
 
-    def _training_step(self, train_set, train_op, summarizing_flag):
+    def _training_step(self, train_set, train_op, summarizing_flag, logging_flag):
         """Run one training iteration.
 
         Arguments:
             train_set -- TFDataset object
             train_op -- training operation
             summarizing_flag -- boolean indicator of summarizing
+            logging_flag -- boolean indicator of logging
 
         """
 
         # Get next training batch
         train_batch = train_set.next_batch()
 
+        output_tensors = [train_op]
+
         # Produce this dataset over network
-        if summarizing_flag and len(self.metrics['batch_train']) > 0:
+        if summarizing_flag:
             summary_op = tf.summary.merge_all('batch_train')
-            values = self.produce(train_set, train_batch, [summary_op, train_op])
-            summary_str = values[0]
+            output_tensors.append(summary_op)
+
+        if logging_flag:
+            # Get key and tensors
+            metric_keys = list(self.metrics['log_train'].keys())
+            metric_tensors = list(self.metrics['log_train'].values())
+            output_tensors += metric_tensors
+
+        # Calculate all produced values
+        values = self.produce(train_set, train_batch, output_tensors)
+
+        if summarizing_flag:
+            # Get summary values
+            summary_str = values[1]
+
+            # Write summaries
             self._summary_writer.add_summary(summary_str, self._iteration)
-        else:
-            self.produce(train_set, train_batch, [train_op])
+
+        if logging_flag:
+            # Get logging metric values
+            if summarizing_flag:
+                metric_values = values[2:]
+            else:
+                metric_values = values[1:]
+
+            # Save metric values to dictionary
+            metrics = {}
+            for i in range(len(metric_keys)):
+                metrics[metric_keys[i]] = metric_values[i]
+
+            # Convert metrics to string
+            metrics_str = '   '.join(['%s = %.6f' % (k, metrics[k]) for k in metrics])
+
+            # Calculate time of last logging period
+            period_time = time.time() - self._last_log_time
+            self._last_log_time = time.time()
+
+            # Log training process
+            format_string = 'Iter %d / %d (epoch %d / %d):   %s   [%.3f sec]'
+            print(format_string % (self._iteration,
+                                   self._iter_count,
+                                   self._epoch,
+                                   self._epoch_count,
+                                   metrics_str,
+                                   period_time))
 
     def _validation_step(self, val_set, summarizing_flag):
         """Run one training iteration.

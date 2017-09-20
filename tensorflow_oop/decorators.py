@@ -137,27 +137,21 @@ def check_fit_arguments(function):
 
 def check_evaluate_arguments(function):
     """Decorator for check evaluate arguments."""
-    def wrapper(self, batch, collection='eval_test', *args, **kwargs):
-        assert collection in ['batch_train',
-                              'batch_validation',
-                              'log_train',
-                              'eval_train',
+    def wrapper(self, dataset, collection='eval_test', *args, **kwargs):
+        assert collection in ['eval_train',
                               'eval_validation',
                               'eval_test'], \
             '''Collections should be only from list
-            ['batch_train',
-             'batch_validation',
-             'log_train',
-             'eval_train',
+            ['eval_train',
              'eval_validation',
              'eval_test']:
             collection = %s''' % collection
 
-        assert isinstance(batch, TFBatch), \
-            '''Argument batch should be object of TFBatch type:
-            type(batch) = %s''' % type(batch)
+        assert isinstance(dataset, TFDataset), \
+            '''Argument dataset should be object of TFDataset type:
+            type(dataset) = %s''' % type(dataset)
 
-        return function(self, batch, collection, *args, **kwargs)
+        return function(self, dataset, collection, *args, **kwargs)
     return wrapper
 
 

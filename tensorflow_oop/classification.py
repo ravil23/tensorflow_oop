@@ -48,7 +48,6 @@ class TFClassifier(TFNeuralNetwork):
             inputs_type -- type of inputs layer
             targets_type -- type of targets layer
             outputs_type -- type of outputs layer
-            reset -- indicator of clearing default graph and logging directory
             kwargs -- dictionary of keyword arguments
 
         """
@@ -64,12 +63,18 @@ class TFClassifier(TFNeuralNetwork):
         self.softmax = tf.nn.softmax(self.outputs, name='softmax')
 
         # Calculate accuracy
-        correct_prediction = tf.equal(tf.argmax(self.targets, 1),
-                                      tf.argmax(self.outputs, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32),
-                                  name='accuracy')
+        accuracy, update_op = tf.metrics.accuracy(labels=tf.argmax(self.targets, 1),
+                              predictions=tf.argmax(self.outputs, 1))
 
         # Add accuracy metric
+        self.add_metric(update_op,
+                        summary_type=tf.summary.scalar,
+                        collections=['batch_train',
+                                     'batch_validation',
+                                     'log_train',
+                                     'eval_train',
+                                     'eval_validation',
+                                     'eval_test'])
         self.add_metric(accuracy,
                         summary_type=tf.summary.scalar,
                         collections=['batch_train',
