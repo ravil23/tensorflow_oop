@@ -62,10 +62,9 @@ def run(args):
     print('%s\n' % model)
 
     # Add learning rate decay
-    learning_rate = tf.train.exponential_decay(0.01, model.global_step,
-                                               1000, 0.97,
+    learning_rate = tf.train.exponential_decay(0.01, model.global_step, 1000, 0.97,
                                                name='learning_rate')
-    model.add_metric(learning_rate, tf.summary.scalar, ['batch_train'])
+    model.add_metric(learning_rate, collections=['batch_train'])
 
     # Fitting model
     model.fit(train_set,
@@ -76,11 +75,11 @@ def run(args):
 
     # Evaluation
     if train_set is not None:
-        model.evaluate_and_log(train_set.full_batch())
+        model.evaluate_and_log(train_set)
     if val_set is not None:
-        model.evaluate_and_log(val_set.full_batch())
+        model.evaluate_and_log(val_set)
     if test_set is not None:
-        model.evaluate_and_log(test_set.full_batch())
+        model.evaluate_and_log(test_set)
 
     if args.show:
         print('Showing test set...')

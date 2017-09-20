@@ -129,18 +129,10 @@ class TFEmbedding(TFNeuralNetwork):
                                                              embedding_neg)
 
         # Add centroid distance metric
-        self.add_metric(tf.identity(centroid_pos_dist, 'centroid_pos_dist'),
-                        summary_type=tf.summary.histogram,
-                        collections=['batch_train'])
-        self.add_metric(tf.identity(centroid_neg_dist, 'centroid_neg_dist'),
-                        summary_type=tf.summary.histogram,
-                        collections=['batch_train'])
-        self.add_metric(tf.reduce_mean(centroid_pos_dist, name='mean_centroid_pos_dist'),
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train'])
-        self.add_metric(tf.reduce_mean(centroid_neg_dist, name='mean_centroid_neg_dist'),
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train'])
+        self.add_metric(tf.identity(centroid_pos_dist, 'centroid_pos_dist'), collections=['batch_train'])
+        self.add_metric(tf.identity(centroid_neg_dist, 'centroid_neg_dist'), collections=['batch_train'])
+        self.add_metric(tf.reduce_mean(centroid_pos_dist, name='mean_centroid_pos_dist'), collections=['batch_train'])
+        self.add_metric(tf.reduce_mean(centroid_neg_dist, name='mean_centroid_neg_dist'), collections=['batch_train'])
 
         def max_fscore(pos_dist, neg_dist):
             """Centroid binary classification fscore."""
@@ -167,7 +159,6 @@ class TFEmbedding(TFNeuralNetwork):
         # Add max centroid fscore metric
         max_centroid_fscore = max_fscore(centroid_pos_dist, centroid_neg_dist)
         self.add_metric(tf.identity(max_centroid_fscore, 'max_centroid_fscore'),
-                        summary_type=tf.summary.scalar,
                         collections=['batch_train', 'batch_validation', 'log_train'])
 
     def loss_function(self, targets, outputs, **kwargs):
@@ -228,25 +219,23 @@ class TFEmbedding(TFNeuralNetwork):
         in_mask = losses >= margin
 
         # Add triplets count metric
-        triplets_count_all = tf.cast(tf.size(losses), tf.float32, name='triplets_count_all')
-        self.add_metric(triplets_count_all,
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train'])
+        triplets_count_all = tf.size(losses, out_type=tf.float32, name='triplets_count_all')
+        self.add_metric(triplets_count_all, collections=['batch_train'])
 
-        triplets_portion_out = tf.cast(tf.count_nonzero(out_mask), tf.float32) / triplets_count_all
-        self.add_metric(tf.identity(triplets_portion_out, name='triplets_portion_out'),
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train'])
+        triplets_portion_out = tf.divide(tf.count_nonzero(out_mask, dtype=tf.float32),
+                                         triplets_count_all,
+                                         name='triplets_portion_out')
+        self.add_metric(triplets_portion_out, collections=['batch_train'])
 
-        triplets_portion_margin = tf.cast(tf.count_nonzero(margin_mask), tf.float32) / triplets_count_all
-        self.add_metric(tf.identity(triplets_portion_margin, name='triplets_portion_margin'),
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train'])
+        triplets_portion_margin = tf.divide(tf.count_nonzero(margin_mask, dtype=tf.float32),
+                                            triplets_count_all,
+                                            name='triplets_portion_margin')
+        self.add_metric(triplets_portion_margin, collections=['batch_train'])
 
-        triplets_portion_in = tf.cast(tf.count_nonzero(in_mask), tf.float32) / triplets_count_all
-        self.add_metric(tf.identity(triplets_portion_in, name='triplets_portion_in'),
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train'])
+        triplets_portion_in = tf.divide(tf.count_nonzero(in_mask, dtype=tf.float32),
+                                        triplets_count_all,
+                                        name='triplets_portion_in')
+        self.add_metric(triplets_portion_in, collections=['batch_train'])
 
         return tf.reduce_mean(valid_losses)
 

@@ -202,8 +202,8 @@ def check_produce_arguments(function):
                 '''Argument batch should be object of TFBatch type:
                 type(batch) = %s''' % type(batch)
 
-        assert isinstance(output_tensors, (list, tuple)), \
-            '''Output tensors should be list or tuple:
+        assert isinstance(output_tensors, (tf.Tensor, list, tuple, dict)), \
+            '''Output tensors should be list, tuple or dict:
             type(output_tensors) = %s''' % type(output_tensors)
 
         return function(self, dataset, batch, output_tensors, *args, **kwargs)

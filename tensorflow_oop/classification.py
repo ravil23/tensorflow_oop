@@ -17,7 +17,7 @@ class TFClassifier(TFNeuralNetwork):
     Classification model with Softmax and Cross entropy loss function.
     """
 
-    __slots__ = TFNeuralNetwork.__slots__ + ['softmax',]
+    __slots__ = TFNeuralNetwork.__slots__ + ['softmax', 'predictions']
 
     def load(self, model_checkpoint_path=None):
         """Load checkpoint.
@@ -30,6 +30,7 @@ class TFClassifier(TFNeuralNetwork):
 
         # Get probability operation
         self.softmax = self.sess.graph.get_tensor_by_name('softmax:0')
+        self.predictions = self.sess.graph.get_tensor_by_name('predictions:0')
 
     def initialize(self,
                    inputs_shape,
@@ -61,28 +62,20 @@ class TFClassifier(TFNeuralNetwork):
 
         # Add probability operation
         self.softmax = tf.nn.softmax(self.outputs, name='softmax')
+        
+        # Add predictions operation
+        self.predictions = tf.argmax(self.outputs, 1, name='predictions')
 
         # Calculate accuracy
-        accuracy, update_op = tf.metrics.accuracy(labels=tf.argmax(self.targets, 1),
-                              predictions=tf.argmax(self.outputs, 1))
+        accuracy = tf.metrics.accuracy(labels=tf.argmax(self.targets, 1),
+                                       predictions=self.predictions)
 
         # Add accuracy metric
-        self.add_metric(update_op,
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train',
-                                     'batch_validation',
-                                     'log_train',
-                                     'eval_train',
-                                     'eval_validation',
-                                     'eval_test'])
         self.add_metric(accuracy,
-                        summary_type=tf.summary.scalar,
-                        collections=['batch_train',
-                                     'batch_validation',
+                        collections=['batch_train', 'batch_validation',
                                      'log_train',
-                                     'eval_train',
-                                     'eval_validation',
-                                     'eval_test'])
+                                     'eval_train', 'eval_validation', 'eval_test'],
+                        key='accuracy')
 
     def loss_function(self, targets, outputs, **kwargs):
         """Cross entropy.
@@ -126,6 +119,6 @@ class TFClassifier(TFNeuralNetwork):
             prediction_values -- batch of predictions
 
         """
-        return self.sess.run(tf.argmax(self.softmax, 1), feed_dict={
+        return self.sess.run(self.prediction, feed_dict={
             self.inputs: inputs_values,
         })

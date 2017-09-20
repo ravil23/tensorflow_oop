@@ -31,13 +31,14 @@ class TFNeuralNetwork(object):
                  'top_k_placeholder', 'top_k_outputs',
                  'loss', 'global_step',
                  'sess',
-                 'kwargs', 'metrics', 'update_ops', 'summaries',
+                 'kwargs', 'metrics', '_update_ops', '_summaries',
                  '_summary_writer', '_projector_config',
                  '_best_val_checkpoint', '_best_val_result',
                  '_best_val_iteration', '_best_val_key',
                  '_fit_checkpoint', '_vis_checkpoint',
                  '_iteration', '_iter_count',
-                 '_epoch', '_epoch_count']
+                 '_epoch', '_epoch_count',
+                 '_local_variables_initializer']
 
     def __init__(self, log_dir, reset=True):
         for attr in self.__slots__:
@@ -51,13 +52,13 @@ class TFNeuralNetwork(object):
                         'eval_train': {},
                         'eval_validation': {},
                         'eval_test': {}}
-        self.update_ops = {'batch_train': {},
+        self._update_ops = {'batch_train': {},
                         'batch_validation': {},
                         'log_train': {},
                         'eval_train': {},
                         'eval_validation': {},
                         'eval_test': {}}
-        self.summaries = {'batch_train': [],
+        self._summaries = {'batch_train': [],
                         'batch_validation': [],
                         'log_train': [],
                         'eval_train': [],
@@ -116,6 +117,9 @@ class TFNeuralNetwork(object):
 
         print('Start loading model...')
 
+        # Save loading information
+        self.loaded = True
+
         # Get metagraph saver
         saver = tf.train.import_meta_graph(model_checkpoint_path + '.meta',
                                            clear_devices=True)
@@ -147,7 +151,7 @@ class TFNeuralNetwork(object):
 
         for collection in self.metrics:
             self.metrics[collection] = load_metrics('metric_' + collection)
-            self.update_ops[collection] = load_metrics('update_op_' + collection)
+            self._update_ops[collection] = load_metrics('update_op_' + collection)
 
         # Input, Target and Output layer shapes
         self.inputs_shape = self.inputs.shape.as_list()[1:]
@@ -161,9 +165,11 @@ class TFNeuralNetwork(object):
         # Projector config object
         self._projector_config = projector.ProjectorConfig()
 
+        # Run the Op to initialize the variables
+        self.initialize_variables()
+
         # Enable initialization flag
         self.init = True
-        self.loaded = True
         print('Model loaded from: %s' % model_checkpoint_path)
 
     def initialize(self,
@@ -260,11 +266,13 @@ class TFNeuralNetwork(object):
 
     def initialize_variables(self):
         """Initialize global and local variables."""
-        self.sess.run(tf.global_variables_initializer())
-        self.sess.run(tf.local_variables_initializer())
+        if not self.loaded:
+            self.sess.run(tf.global_variables_initializer())
+        self._local_variables_initializer = tf.local_variables_initializer()
+        self.sess.run(self._local_variables_initializer)
 
     @check_add_metric_arguments
-    def add_metric(self, metric, collections):
+    def add_metric(self, metric, collections, key=None):
         """Add logging and summarizing metric.
 
         Arguments:
@@ -275,6 +283,7 @@ class TFNeuralNetwork(object):
                                                  'eval_train',
                                                  'eval_validation',
                                                  'eval_test']
+            key -- string key
 
         """
 
@@ -282,8 +291,7 @@ class TFNeuralNetwork(object):
         if isinstance(metric, tf.Tensor):
             update_op = None
         else:
-            metric = metric[0]
-            update_op = metric[1]
+            metric, update_op = metric
         metric_size = tf.size(metric).eval(session=self.sess)
 
         # Delete all dimensions for scalar tensor
@@ -291,31 +299,36 @@ class TFNeuralNetwork(object):
             metric = tf.reshape(metric, [])
 
         # Parse metric key
-        key = self._basename_tensor(metric)
+        if key is None:
+            key = self._basename_tensor(metric)
+
+        # Auto detect summary type
+        if metric_size == 1:
+            summary_type = tf.summary.scalar
+        else:
+            summary_type = tf.summary.histogram
 
         # Add metric to passed collections
         for collection in collections:
-            if 'eval' in collection:
-                if metric_size == 1:
-                    tf.summary.scalar(collection + '/' + key,
+            if 'eval' in collection or update_op is None:
+                # Add summary to graph
+                summary_type(collection + '/' + key,
                              metric,
                              collections=[collection])
-                else:
-                    tf.summary.histogram(collection + '/' + key,
-                             metric,
-                             collections=[collection])
+
+                # Add metric to dictionary
+                self.metrics[collection][key] = metric
             else:
-                if metric_size == 1:
-                    tf.summary.scalar(collection + '/' + key,
-                             update_op,
-                             collections=[collection])
-                else:
-                    tf.summary.histogram(collection + '/' + key,
+                # Add summary to graph
+                summary_type(collection + '/' + key,
                              update_op,
                              collections=[collection])
 
+                # Add metric to dictionary
+                self.metrics[collection][key] = update_op
+
             # Update summaries dictionary
-            self.summaries[collection] = tf.summary.merge_all(collection)
+            self._summaries[collection] = tf.summary.merge_all(collection)
 
             # Add tensors to graph collection
             self.sess.graph.add_to_collection('metric_' + collection, metric)
@@ -323,9 +336,8 @@ class TFNeuralNetwork(object):
                 self.sess.graph.add_to_collection('update_op_' + collection, update_op)
 
             # Add metric to dictionary
-            self.metrics[collection][key] = metric
             if update_op is not None:
-                self.update_ops[collection][key] = update_op
+                self._update_ops[collection][key] = update_op
 
     @check_initialization
     @check_fit_arguments
@@ -502,15 +514,16 @@ class TFNeuralNetwork(object):
         """
 
         # Reset local metric tickers
-        self.sess.run(tf.local_variables_initializer())
+        self.sess.run(self._local_variables_initializer)
 
         # Update local variables by one epoch
         for batch in dataset.iterbatches(count=None):
-            self.produce(dataset, batch, self.metrics_update_op[collection])
+            self.produce(dataset, batch, self._update_ops[collection])
 
         # Calculate metrics values
         full_batch = dataset.full_batch()
-        metrics, summary_str = self.produce(dataset, full_batch, [self.metrics[collection], self.summaries[collection]])
+        output_tensors = [self.metrics[collection], self._summaries[collection]]
+        metrics, summary_str = self.produce(dataset, full_batch, output_tensors)
 
         # Update the events file with evaluation summary
         self._summary_writer.add_summary(summary_str, self._iteration)
@@ -807,7 +820,7 @@ class TFNeuralNetwork(object):
         """
 
         # Reset local metric tickers
-        self.sess.run(tf.local_variables_initializer())
+        self.sess.run(self._local_variables_initializer)
 
         # Get next training batch
         train_batch = train_set.next_batch()
@@ -816,7 +829,7 @@ class TFNeuralNetwork(object):
 
         # Get summarizing tensors
         if summarizing_flag:
-            output_tensors[1] = self.summaries['batch_train']
+            output_tensors[1] = self._summaries['batch_train']
 
         # Get logging tensors
         if logging_flag:
@@ -857,12 +870,12 @@ class TFNeuralNetwork(object):
 
         if summarizing_flag:
             # Reset local metric tickers
-            self.sess.run(tf.local_variables_initializer())
+            self.sess.run(self._local_variables_initializer)
 
             # Get next validation batch
             val_batch = val_set.next_batch()
 
             # Produce this dataset over network
-            summary_str = self.produce(val_set, val_batch, self.summaries['batch_validation'])
+            summary_str = self.produce(val_set, val_batch, self._summaries['batch_validation'])
 
             self._summary_writer.add_summary(summary_str, self._iteration)
