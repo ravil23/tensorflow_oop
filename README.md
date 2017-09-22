@@ -35,3 +35,8 @@ Library uninstallation commands:
 python setup.py install --record files.txt
 cat files.txt | xargs rm -rf
 ```
+
+## ToDo
+1. Add decorator for dataset last batch
+2. Add decorator for sequences padding and dynamic lengths
+3. Add indexes to batch
