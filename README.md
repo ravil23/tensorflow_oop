@@ -40,3 +40,6 @@ cat files.txt | xargs rm -rf
 1. Add decorator for dataset last batch
 2. Add decorator for sequences padding and dynamic lengths
 3. Add indexes to batch
+4. Add placeholders for margin and exlude hard properties
+5. Add dropout
+6. Add loading local variables
