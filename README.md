@@ -44,3 +44,4 @@ cat files.txt | xargs rm -rf
 5. Add dropout
 6. Add loading local variables
 7. Add freeze
+8. Add word2vec implementation
