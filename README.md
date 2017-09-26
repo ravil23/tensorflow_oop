@@ -37,11 +37,10 @@ cat files.txt | xargs rm -rf
 ```
 
 ## ToDo
-1. Add decorator for dataset last batch
-2. Add decorator for sequences padding and dynamic lengths
-3. Add indexes to batch
-4. Add placeholders for margin and exlude hard properties
-5. Add dropout
-6. Add loading local variables
-7. Add word2vec implementation
-8. Don't create new saver if exist
+1. Add decorator for sequences padding and dynamic lengths
+2. Add indexes to batch
+3. Add placeholders for margin and exlude hard properties
+4. Add dropout
+5. Add loading local variables
+6. Add word2vec implementation
+7. Don't create new saver if exist

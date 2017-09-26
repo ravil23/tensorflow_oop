@@ -15,6 +15,15 @@ def check_initialization(function):
     return wrapper
 
 
+def update_last_batch(function):
+    """Decorator for updating last batch."""
+    def wrapper(self, *args, **kwargs):
+        batch = function(self, *args, **kwargs)
+        self.last_batch = batch
+        return batch
+    return wrapper
+
+
 class TFBatch:
 
     """
@@ -146,6 +155,7 @@ class TFDataset(object):
         self.batch_size = int(batch_size)
 
     @check_initialization
+    @update_last_batch
     def next_batch(self):
         """Get next batch."""
         first = (self.batch_num * self.batch_size) % self.size
@@ -167,8 +177,7 @@ class TFDataset(object):
                                          self.labels[:last - self.size],
                                          axis=0)
         self.batch_num += 1
-        self.last_batch = TFBatch(data=batch_data, labels=batch_labels)
-        return self.last_batch
+        return TFBatch(data=batch_data, labels=batch_labels)
 
     @check_initialization
     def full_batch(self):

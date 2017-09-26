@@ -45,6 +45,7 @@ class TFTripletset(TFDataset):
         self.batch_negatives_count = self.batch_size - self.batch_positives_count
 
     @check_initialization
+    @update_last_batch
     def next_batch(self):
         """Get next batch."""
         labels = self.labels.flatten()
@@ -69,8 +70,7 @@ class TFTripletset(TFDataset):
         batch_data = np.vstack([positives, negatives])
         batch_labels = np.append(np.zeros(len(positives)),
                                  np.ones(len(negatives)))
-        self.last_batch = TFBatch(data=batch_data, labels=batch_labels)
-        return self.last_batch
+        return TFBatch(data=batch_data, labels=batch_labels)
 
 class TFEmbedding(TFNeuralNetwork):
 
