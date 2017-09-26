@@ -163,21 +163,15 @@ class TFDataset(object):
         batch_data = None
         batch_labels = None
         if (last <= self.size):
-            if self.data is not None:
-                batch_data = self.data[first:last]
-            if self.labels is not None:
-                batch_labels = self.labels[first:last]
+            batch_indexes = np.arange(first, last)
         else:
-            if self.data is not None:
-                batch_data = np.append(self.data[first:],
-                                       self.data[:last - self.size],
-                                       axis=0)
-            if self.labels is not None:
-                batch_labels = np.append(self.labels[first:],
-                                         self.labels[:last - self.size],
-                                         axis=0)
+            batch_indexes = np.append(np.arange(first, self.size), np.arange(last - self.size))
+        if self.data is not None:
+            batch_data = self.data[batch_indexes]
+        if self.labels is not None:
+            batch_labels = self.labels[batch_indexes]
         self.batch_num += 1
-        return TFBatch(data=batch_data, labels=batch_labels)
+        return TFBatch(data=batch_data, labels=batch_labels, indexes=batch_indexes)
 
     @check_initialization
     def full_batch(self):

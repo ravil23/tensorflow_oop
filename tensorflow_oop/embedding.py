@@ -56,21 +56,21 @@ class TFTripletset(TFDataset):
         def random_sample(data, count):
             indexes = np.arange(len(data))
             rand_indexes = np.random.choice(indexes, count, replace=False)
-            return data[rand_indexes]
+            return data[rand_indexes], rand_indexes
 
         # Take positive samples
-        positives = random_sample(self.data[labels == rand_pos_key],
-                                  self.batch_positives_count)
+        positives, pos_indexes = random_sample(self.data[labels == rand_pos_key],
+                                               self.batch_positives_count)
 
         # Take negative samples
-        negatives = random_sample(self.data[labels != rand_pos_key],
-                                  self.batch_negatives_count)
+        negatives, neg_indexes = random_sample(self.data[labels != rand_pos_key],
+                                               self.batch_negatives_count)
 
         # Create batch
         batch_data = np.vstack([positives, negatives])
-        batch_labels = np.append(np.zeros(len(positives)),
-                                 np.ones(len(negatives)))
-        return TFBatch(data=batch_data, labels=batch_labels)
+        batch_labels = np.append(np.zeros(len(positives)), np.ones(len(negatives)))
+        batch_indexes = np.append(pos_indexes, neg_indexes)
+        return TFBatch(data=batch_data, labels=batch_labels, indexes=batch_indexes)
 
 class TFEmbedding(TFNeuralNetwork):
 

@@ -38,9 +38,8 @@ cat files.txt | xargs rm -rf
 
 ## ToDo
 1. Add decorator for sequences padding and dynamic lengths
-2. Add indexes to batch
-3. Add placeholders for margin and exlude hard properties
-4. Add dropout
-5. Add loading local variables
-6. Add word2vec implementation
-7. Don't create new saver if exist
+2. Add placeholders for margin and exlude hard properties
+3. Add dropout
+4. Add loading local variables
+5. Add word2vec implementation
+6. Don't create new saver if exist
