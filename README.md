@@ -43,5 +43,5 @@ cat files.txt | xargs rm -rf
 4. Add placeholders for margin and exlude hard properties
 5. Add dropout
 6. Add loading local variables
-7. Add freeze
-8. Add word2vec implementation
+7. Add word2vec implementation
+8. Don't create new saver if exist
