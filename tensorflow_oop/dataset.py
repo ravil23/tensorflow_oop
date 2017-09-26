@@ -158,16 +158,22 @@ class TFDataset(object):
     @update_last_batch
     def next_batch(self):
         """Get next batch."""
+
+        # Get batch indexes
         first = (self.batch_num * self.batch_size) % self.size
         last = first + self.batch_size
-        batch_data = None
-        batch_labels = None
         if (last <= self.size):
             batch_indexes = np.arange(first, last)
         else:
             batch_indexes = np.append(np.arange(first, self.size), np.arange(last - self.size))
+
+        # Get batch data
+        batch_data = None
         if self.data is not None:
             batch_data = self.data[batch_indexes]
+
+        # Get batch labels
+        batch_labels = None
         if self.labels is not None:
             batch_labels = self.labels[batch_indexes]
         self.batch_num += 1
@@ -537,3 +543,28 @@ class TFSequence(TFDataset):
             unnormalized_sequences.append(result_data[first:last])
             first = last
         self.data = np.asarray(unnormalized_sequences)
+
+    @check_initialization
+    @update_last_batch
+    def next_batch(self):
+        """Get next batch."""
+        batch = super(TFSequence, self).next_batch()
+        if self.max_sequence_length is not None:
+            batch.data, batch.lengths = self.padding(batch.data)
+        return batch
+
+    def padding(self, data):
+        data_with_padding = []
+        lengths = []
+        for sequence in data:
+            if len(sequence) >= self.max_sequence_length:
+                length = self.max_sequence_length
+                sequence_with_padding = sequence[:self.max_sequence_length]
+            else:
+                length = len(sequence)
+                shape = [self.max_sequence_length] + list(sequence.shape[1:])
+                sequence_with_padding = np.zeros(shape)
+                sequence_with_padding[:length] = sequence
+            lengths.append(length)
+            data_with_padding.append(sequence_with_padding)
+        return np.asarray(data_with_padding), np.asarray(lengths)
