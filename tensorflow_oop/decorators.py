@@ -21,7 +21,7 @@ def check_inputs_values(function):
         assert np.all(new_shape == cur_shape), \
             '''Inputs values shape should be correspond to model inputs shape:
             inputs_values.shape = %s, self.inputs_shape = %s''' \
-            % (inputs_values.shape, self.inputs_shape) 
+            % (inputs_values.shape, self.inputs_shape)
         return function(self, inputs_values=inputs_values, *args, **kwargs)
     return wrapper
 
@@ -117,7 +117,7 @@ def check_fit_arguments(function):
                     self.metrics['eval_validation'] = %s, best_val_key = %s''' % \
                     (self.metrics['eval_validation'], best_val_key)
 
-        return function(self, 
+        return function(self,
                         train_set,
                         epoch_count,
                         iter_count,

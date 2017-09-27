@@ -32,12 +32,13 @@ class TFNeuralNetwork(object):
                  'loss', 'global_step',
                  'sess',
                  'kwargs', 'metrics', '_update_ops', '_summaries',
-                 '_summary_writer', '_projector_config',
+                 '_summary_writer', '_projector_config', '_saver',
                  '_best_val_checkpoint', '_best_val_result',
                  '_best_val_iteration', '_best_val_key',
                  '_fit_checkpoint', '_vis_checkpoint',
                  '_iteration', '_iter_count',
                  '_epoch', '_epoch_count',
+                 '_global_variables_initializer',
                  '_local_variables_initializer']
 
     def __init__(self, log_dir, reset=True):
@@ -122,7 +123,7 @@ class TFNeuralNetwork(object):
         self.loaded = True
 
         # Get metagraph saver
-        saver = tf.train.import_meta_graph(model_checkpoint_path + '.meta',
+        self._saver = tf.train.import_meta_graph(model_checkpoint_path + '.meta',
                                            clear_devices=True)
 
         # Create a session for running Ops on the Graph
@@ -131,7 +132,7 @@ class TFNeuralNetwork(object):
         self.sess = tf.Session(config=config)
 
         # Restore model from saver
-        saver.restore(self.sess, model_checkpoint_path)
+        self._saver.restore(self.sess, model_checkpoint_path)
 
         # Get named tensors
         self.inputs = self.sess.graph.get_tensor_by_name('inputs:0')
@@ -167,7 +168,7 @@ class TFNeuralNetwork(object):
         self._projector_config = projector.ProjectorConfig()
 
         # Run the Op to initialize the variables
-        self.initialize_variables()
+        self.initialize_variables(init_global=False, init_local=True)
 
         # Enable initialization flag
         self.init = True
@@ -258,19 +259,30 @@ class TFNeuralNetwork(object):
         self._projector_config = projector.ProjectorConfig()
 
         # Run the Op to initialize the variables
-        self.initialize_variables()
+        self.initialize_variables(init_global=True, init_local=True)
 
         # Enable initialization flag
         self.init = True
 
         print('Finish initializing model.')
 
-    def initialize_variables(self):
-        """Initialize global and local variables."""
-        if not self.loaded:
-            self.sess.run(tf.global_variables_initializer())
-        self._local_variables_initializer = tf.local_variables_initializer()
-        self.sess.run(self._local_variables_initializer)
+    def initialize_variables(self, init_global, init_local):
+        """Initialize global and local variables and create new saver.
+
+        Arguments:
+            init_global -- boolean indicator of initialization global variables
+            init_local -- boolean indicator of initialization local variables
+
+        """
+        if init_global:
+            self._global_variables_initializer = tf.global_variables_initializer()
+            self.sess.run(self._global_variables_initializer)
+        if init_local:
+            self._local_variables_initializer = tf.local_variables_initializer()
+            self.sess.run(self._local_variables_initializer)
+        if init_global or init_local:
+            self._saver = tf.train.Saver(max_to_keep=1000)
+            print("CREATE NEW SAVER")
 
     @check_add_metric_arguments
     def add_metric(self, metric, collections, key=None):
@@ -576,9 +588,8 @@ class TFNeuralNetwork(object):
             global_step -- optional suffix adding to path (default None)
 
         """
-        saver = tf.train.Saver(max_to_keep=None)
-        saved_filename = saver.save(self.sess, filename,
-                                    global_step=global_step)
+        saved_filename = self._saver.save(self.sess, filename,
+                                         global_step=global_step)
         print('Model saved to: %s' % saved_filename)
     
     @check_initialization
@@ -589,8 +600,7 @@ class TFNeuralNetwork(object):
             filename -- path to checkpoint
         
         """
-        saver = tf.train.Saver(max_to_keep=None)
-        saver.restore(self.sess, filename)
+        self._saver.restore(self.sess, filename)
 
     @check_initialization
     def save_best_on_validation(self, result):
@@ -748,7 +758,7 @@ class TFNeuralNetwork(object):
                                                  name='train_op')
 
             # Run the Op to initialize the variables
-            self.initialize_variables()
+            self.initialize_variables(init_global=True, init_local=True)
         else:
             train_op = self.sess.graph.get_operation_by_name('train_op')
         return train_op
