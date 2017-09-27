@@ -96,5 +96,13 @@ class TestTFSequence(unittest.TestCase):
         self.assertTrue(np.sum(np.abs(self.short2.data[1] - np.asarray([[4], [5]]))) < 0.000001)
         self.assertEqual(len(self.short2.data), 2)
 
+    def test_padding(self):
+        sequences_with_padding, lengths = TFSequence.padding(self.data, 6)
+        self.assertTrue(np.all(lengths == np.asarray([4, 3, 3, 4, 5])))
+        sequences_with_padding, lengths = TFSequence.padding(self.data, 1)
+        self.assertTrue(np.all(lengths == np.asarray([1, 1, 1, 1, 1])))
+        sequences_with_padding, lengths = TFSequence.padding([[], [1,2,3]], 4)
+        self.assertTrue(np.all(lengths == np.asarray([0, 3])))
+
 if __name__ == '__main__':
     unittest.main()

@@ -544,27 +544,31 @@ class TFSequence(TFDataset):
             first = last
         self.data = np.asarray(unnormalized_sequences)
 
-    @check_initialization
-    @update_last_batch
-    def next_batch(self):
-        """Get next batch."""
-        batch = super(TFSequence, self).next_batch()
-        if self.max_sequence_length is not None:
-            batch.data, batch.lengths = self.padding(batch.data)
-        return batch
+    @staticmethod
+    def padding(sequences, max_sequence_length, padding_value=0):
+        """Add padding to data.
 
-    def padding(self, data):
-        data_with_padding = []
+        Arguments:
+            sequences -- input sequences
+            max_sequence_length -- maximal sequence length
+            padding_value -- fill value (optional)
+
+        Return:
+            data_with_padding -- output data with shape [len(sequences), max_sequence_length, ...]
+            lengths -- sequences lengths without padding
+
+        """
+        sequences_with_padding = []
         lengths = []
-        for sequence in data:
-            if len(sequence) >= self.max_sequence_length:
-                length = self.max_sequence_length
-                sequence_with_padding = sequence[:self.max_sequence_length]
+        for sequence in sequences:
+            if len(sequence) >= max_sequence_length:
+                length = max_sequence_length
+                sequence_with_padding = sequence[:max_sequence_length]
             else:
                 length = len(sequence)
-                shape = [self.max_sequence_length] + list(sequence.shape[1:])
-                sequence_with_padding = np.zeros(shape)
+                shape = [max_sequence_length] + list(np.asarray(sequence).shape[1:])
+                sequence_with_padding = np.ones(shape) * padding_value
                 sequence_with_padding[:length] = sequence
             lengths.append(length)
-            data_with_padding.append(sequence_with_padding)
-        return np.asarray(data_with_padding), np.asarray(lengths)
+            sequences_with_padding.append(sequence_with_padding)
+        return np.asarray(sequences_with_padding), np.asarray(lengths)
