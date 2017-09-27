@@ -1,4 +1,4 @@
-# Tensorflow OOP
+# TensorFlow OOP
 Object Oriented Programming with TensorFlow
 
 ## Install
@@ -37,7 +37,7 @@ cat files.txt | xargs rm -rf
 ```
 
 ## ToDo
-1. Add placeholders for margin and exlude hard properties
-2. Add dropout
-3. Add loading local variables
-4. Add word2vec implementation
+1. Add dropout
+2. Add loading local variables
+3. Add word2vec implementation
+4. Top K outputs

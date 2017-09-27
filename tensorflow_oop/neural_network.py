@@ -31,7 +31,7 @@ class TFNeuralNetwork(object):
                  'top_k_placeholder', 'top_k_outputs',
                  'loss', 'global_step',
                  'sess',
-                 'kwargs', 'metrics', '_update_ops', '_summaries',
+                 'options', 'metrics', '_update_ops', '_summaries',
                  '_summary_writer', '_projector_config', '_saver',
                  '_best_val_checkpoint', '_best_val_result',
                  '_best_val_iteration', '_best_val_key',
@@ -47,7 +47,7 @@ class TFNeuralNetwork(object):
         self.log_dir = log_dir
         self.init = False
         self.loaded = False
-        self.kwargs = {}
+        self.options = {}
         self.metrics = {'batch_train': {},
                         'batch_validation': {},
                         'log_train': {},
@@ -69,7 +69,7 @@ class TFNeuralNetwork(object):
 
         # Checkpoint paths
         self._fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
-        self._vis_checkpoint = os.path.join(self.log_dir, 'vis-checkpoint')
+        self._vis_checkpoint = os.path.join(self.log_dir, 'projector/vis-checkpoint')
         self._best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
 
         # Reset default graph if necessary
@@ -143,7 +143,7 @@ class TFNeuralNetwork(object):
         self.loss = self.sess.graph.get_tensor_by_name('loss:0')
         self.global_step = self.sess.graph.get_tensor_by_name('global_step:0')
 
-        def load_metrics(collection):
+        def load_collection(collection):
             collection_variables = self.sess.graph.get_collection(collection)
             collection_metrics = {}
             for var in collection_variables:
@@ -151,9 +151,17 @@ class TFNeuralNetwork(object):
                 collection_metrics[key] = var
             return collection_metrics
 
+        # Options
+        self.options = load_collection('options')
+
+        # Metrics
         for collection in self.metrics:
-            self.metrics[collection] = load_metrics('metric_' + collection)
-            self._update_ops[collection] = load_metrics('update_op_' + collection)
+            self.metrics[collection] = load_collection('metric_' + collection)
+            self._update_ops[collection] = load_collection('update_op_' + collection)
+
+        # Summaries
+        for collection in self._summaries:
+            self._summaries[collection] = tf.summary.merge_all(collection)
 
         # Input, Target and Output layer shapes
         self.inputs_shape = self.inputs.shape.as_list()[1:]
@@ -162,7 +170,7 @@ class TFNeuralNetwork(object):
 
         # Instantiate a SummaryWriter to output summaries and the Graph
         self._summary_writer = tf.summary.FileWriter(self.log_dir,
-                                                    self.sess.graph)
+                                                     self.sess.graph)
 
         # Projector config object
         self._projector_config = projector.ProjectorConfig()
@@ -213,8 +221,8 @@ class TFNeuralNetwork(object):
         config.gpu_options.allow_growth = True
         self.sess = tf.Session(config=config)
 
-        # Arguments
-        self.kwargs = kwargs
+        # Options
+        self.options = kwargs
 
         # Input, Target and Output layer shapes
         self.inputs_shape = list(inputs_shape)
@@ -230,7 +238,7 @@ class TFNeuralNetwork(object):
                                       name='targets')
 
         # Build a Graph that computes predictions from the inference model
-        outputs = self.inference(self.inputs, **self.kwargs)
+        outputs = self.inference(self.inputs, **self.options)
         self.outputs = tf.identity(outputs, name='outputs')
 
         # Top K outputs
@@ -240,7 +248,7 @@ class TFNeuralNetwork(object):
                                          name='top_k_outputs')
 
         # Loss function
-        loss = self.loss_function(self.targets, self.outputs, **self.kwargs)
+        loss = self.loss_function(self.targets, self.outputs, **self.options)
         self.loss = tf.identity(loss, name='loss')
 
         # Global step tensor
@@ -252,8 +260,7 @@ class TFNeuralNetwork(object):
                                                 'log_train'])
 
         # Instantiate a SummaryWriter to output summaries and the Graph
-        self._summary_writer = tf.summary.FileWriter(self.log_dir,
-                                                    self.sess.graph)
+        self._summary_writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
 
         # Projector config object
         self._projector_config = projector.ProjectorConfig()
@@ -265,6 +272,17 @@ class TFNeuralNetwork(object):
         self.init = True
 
         print('Finish initializing model.')
+
+    def add_option_to_graph(self, name, value):
+        """Add option to graph.
+
+        Arguments:
+            name -- name of tensor
+            value -- data value for tensor
+
+        """
+        option = tf.Variable(value, name=name, trainable=False)
+        self.sess.graph.add_to_collection('options', option)
 
     def initialize_variables(self, init_global, init_local):
         """Initialize global and local variables and create new saver.
@@ -282,7 +300,6 @@ class TFNeuralNetwork(object):
             self.sess.run(self._local_variables_initializer)
         if init_global or init_local:
             self._saver = tf.train.Saver(max_to_keep=1000)
-            print("CREATE NEW SAVER")
 
     @check_add_metric_arguments
     def add_metric(self, metric, collections, key=None):
@@ -589,7 +606,7 @@ class TFNeuralNetwork(object):
 
         """
         saved_filename = self._saver.save(self.sess, filename,
-                                         global_step=global_step)
+                                          global_step=global_step)
         print('Model saved to: %s' % saved_filename)
     
     @check_initialization
@@ -664,11 +681,11 @@ class TFNeuralNetwork(object):
                         keys = list(self.metrics[collection].keys())
                         buf += '%30s: %s\n' % (collection, sorted(keys))
                     string += '%20s:\n%s' % (attr, buf)
-                elif attr == 'kwargs':
+                elif attr == 'options':
                     buf = ''
-                    keys = sorted(list(self.kwargs.keys()))
+                    keys = sorted(list(self.options.keys()))
                     for key in keys:
-                        buf += '%30s: %s\n' % (key, self.kwargs[key])
+                        buf += '%30s: %s\n' % (key, self.options[key])
                     string += '%20s:\n%s' % (attr, buf)
                 else:
                     string += '%20s: %s\n' % (attr, getattr(self, attr))

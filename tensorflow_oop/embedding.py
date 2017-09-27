@@ -186,7 +186,9 @@ class TFEmbedding(TFNeuralNetwork):
             kwargs = %s''' % kwargs
 
         margin = kwargs['margin']
+        self.add_option_to_graph('margin', margin)
         exclude_hard = kwargs['exclude_hard']
+        self.add_option_to_graph('exclude_hard', exclude_hard)
 
         def triplet_loss(margin):
             """Triplet loss function for a given anchor."""
@@ -288,13 +290,13 @@ class TFEmbedding(TFNeuralNetwork):
         embed.tensor_name = vis_name + ':0'
         if labels is not None:
             embed.metadata_path = os.path.join(
-                self.log_dir,
+                os.path.join(self.log_dir, 'projector'),
                 embed.tensor_name + '_metadata.tsv')
         projector.visualize_embeddings(self._summary_writer,
                                        self._projector_config)
 
         # Save checkpoint
-        self.save(self._vis_checkpoint)
+        tf.train.Saver(max_to_keep=1000).save(self.sess, self._vis_checkpoint)
 
         # Write labels info
         if labels is not None:
