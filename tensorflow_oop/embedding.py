@@ -290,7 +290,7 @@ class TFEmbedding(TFNeuralNetwork):
         embed.tensor_name = vis_name + ':0'
         if labels is not None:
             embed.metadata_path = os.path.join(
-                os.path.join(self.log_dir, 'projector'),
+                self.log_dir,
                 embed.tensor_name + '_metadata.tsv')
         projector.visualize_embeddings(self._summary_writer,
                                        self._projector_config)

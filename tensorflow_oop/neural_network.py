@@ -69,7 +69,7 @@ class TFNeuralNetwork(object):
 
         # Checkpoint paths
         self._fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
-        self._vis_checkpoint = os.path.join(self.log_dir, 'projector/vis-checkpoint')
+        self._vis_checkpoint = os.path.join(self.log_dir, 'vis-checkpoint')
         self._best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
 
         # Reset default graph if necessary
