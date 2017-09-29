@@ -37,6 +37,5 @@ cat files.txt | xargs rm -rf
 ```
 
 ## ToDo
-1. Add dropout
-2. Add loading local variables
-3. Add word2vec implementation
+1. Add loading local variables
+2. Add word2vec implementation

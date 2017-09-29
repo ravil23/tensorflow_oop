@@ -28,7 +28,7 @@ class TFNeuralNetwork(object):
     __slots__ = ['init', 'loaded', 'log_dir',
                  'inputs_shape', 'targets_shape', 'outputs_shape',
                  'inputs', 'targets', 'outputs',
-                 'loss', 'global_step',
+                 'loss', 'dropout', 'global_step',
                  'sess',
                  'options', 'metrics', '_update_ops', '_summaries',
                  '_summary_writer', '_projector_config', '_saver',
@@ -138,6 +138,7 @@ class TFNeuralNetwork(object):
         self.targets = self.sess.graph.get_tensor_by_name('targets:0')
         self.outputs = self.sess.graph.get_tensor_by_name('outputs:0')
         self.loss = self.sess.graph.get_tensor_by_name('loss:0')
+        self.dropout = self.sess.graph.get_tensor_by_name('dropout:0')
         self.global_step = self.sess.graph.get_tensor_by_name('global_step:0')
 
         def load_collection(collection):
@@ -241,6 +242,9 @@ class TFNeuralNetwork(object):
         # Loss function
         loss = self.loss_function(self.targets, self.outputs, **self.options)
         self.loss = tf.identity(loss, name='loss')
+
+        # Dropout tensor
+        self.dropout = tf.placeholder_with_default(1.0, shape=[], name='dropout')
 
         # Global step tensor
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
