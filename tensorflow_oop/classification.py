@@ -21,11 +21,12 @@ class TFClassifier(TFNeuralNetwork):
                                              'softmax', 'predictions',
                                              'top_k_placeholder', 'top_k_softmax']
 
-    def load(self, model_checkpoint_path=None):
+    def load(self, model_checkpoint_path=None, k_values=None):
         """Load checkpoint.
 
         Arguments:
             model_checkpoint_path -- checkpoint path, search last if not passed
+            k_values -- container of k values for top prediction metrics
 
         """
         super(TFClassifier, self).load(model_checkpoint_path=model_checkpoint_path)
@@ -37,6 +38,9 @@ class TFClassifier(TFNeuralNetwork):
         self.predictions = self.sess.graph.get_tensor_by_name('predictions:0')
         self.top_k_placeholder = self.sess.graph.get_tensor_by_name('top_k_placeholder:0')
         self.top_k_softmax = self.sess.graph.get_tensor_by_name('top_k_softmax:0')
+
+        # Add basic classification metrics
+        self._add_basic_classification_metrics(k_values)
 
     def initialize(self,
                    classes_count,
@@ -83,30 +87,8 @@ class TFClassifier(TFNeuralNetwork):
                                          k=self.top_k_placeholder,
                                          name='top_k_softmax')
 
-        if k_values is not None:
-            # Add top K metrics
-            for k in set(k_values):
-                in_top_k = tf.nn.in_top_k(self.softmax, self.targets, k=k, name='in_top_%s' % k)
-
-                # Calculate top K accuracy
-                top_k_accuracy = tf.metrics.mean(in_top_k)
-
-                # Add top K accuracy metric
-                self.add_metric(top_k_accuracy,
-                                collections=['batch_train', 'batch_validation',
-                                             'log_train',
-                                             'eval_train', 'eval_validation', 'eval_test'],
-                                key='top_%s_accuracy' % k)
-        else:
-            # Calculate top K accuracy
-            accuracy = tf.metrics.accuracy(self.targets, self.predictions)
-
-            # Add top K accuracy metric
-            self.add_metric(accuracy,
-                            collections=['batch_train', 'batch_validation',
-                                         'log_train',
-                                         'eval_train', 'eval_validation', 'eval_test'],
-                            key='accuracy')
+        # Add basic classification metrics
+        self._add_basic_classification_metrics(k_values)
 
     def loss_function(self, targets, outputs, **kwargs):
         """Cross entropy for only one correct answer.
@@ -158,3 +140,35 @@ class TFClassifier(TFNeuralNetwork):
             self.inputs: inputs_values,
             self.top_k_placeholder: k
         })
+
+    def _add_basic_classification_metrics(self, k_values=None):
+        """Add basic accuracy metrics.
+
+        Arguments:
+            k_values -- container of k values for top prediction metrics, if not passed used only best prediction as top1
+
+        """
+        if k_values is not None:
+            # Add top K metrics
+            for k in set(k_values):
+                in_top_k = tf.nn.in_top_k(self.softmax, self.targets, k=k, name='in_top_%s' % k)
+
+                # Calculate top K accuracy
+                top_k_accuracy = tf.metrics.mean(in_top_k)
+
+                # Add top K accuracy metric
+                self.add_metric(top_k_accuracy,
+                                collections=['batch_train', 'batch_validation',
+                                             'log_train',
+                                             'eval_train', 'eval_validation', 'eval_test'],
+                                key='top_%s_accuracy' % k)
+        else:
+            # Calculate top K accuracy
+            accuracy = tf.metrics.accuracy(self.targets, self.predictions)
+
+            # Add top K accuracy metric
+            self.add_metric(accuracy,
+                            collections=['batch_train', 'batch_validation',
+                                         'log_train',
+                                         'eval_train', 'eval_validation', 'eval_test'],
+                            key='accuracy')

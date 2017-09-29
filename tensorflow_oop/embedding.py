@@ -185,10 +185,8 @@ class TFEmbedding(TFNeuralNetwork):
             '''Argument \'exclude_hard\' should be passed:
             kwargs = %s''' % kwargs
 
-        margin = kwargs['margin']
-        self.add_option_to_graph('margin', margin)
-        exclude_hard = kwargs['exclude_hard']
-        self.add_option_to_graph('exclude_hard', exclude_hard)
+        margin = self.add_option_to_graph('margin', kwargs['margin'])
+        exclude_hard = self.add_option_to_graph('exclude_hard', kwargs['exclude_hard'])
 
         def triplet_loss(margin):
             """Triplet loss function for a given anchor."""

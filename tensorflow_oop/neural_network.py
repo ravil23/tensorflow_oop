@@ -25,7 +25,7 @@ class TFNeuralNetwork(object):
     Basic neural network model.
     """
 
-    __slots__ = ['init', 'loaded', 'log_dir',
+    __slots__ = ['init', 'restored', 'log_dir',
                  'inputs_shape', 'targets_shape', 'outputs_shape',
                  'inputs', 'targets', 'outputs',
                  'loss', 'dropout', 'global_step',
@@ -40,12 +40,12 @@ class TFNeuralNetwork(object):
                  '_global_variables_initializer',
                  '_local_variables_initializer']
 
-    def __init__(self, log_dir, reset=True):
+    def __init__(self, log_dir, clear, reset_graph=True):
         for attr in self.__slots__:
             setattr(self, attr, None)
         self.log_dir = log_dir
         self.init = False
-        self.loaded = False
+        self.restored = False
         self.options = {}
         self.metrics = {'batch_train': {},
                         'batch_validation': {},
@@ -72,8 +72,14 @@ class TFNeuralNetwork(object):
         self._best_val_checkpoint = os.path.join(self.log_dir, 'best-val-checkpoint')
 
         # Reset default graph if necessary
-        if reset:
+        if reset_graph:
             tf.reset_default_graph()
+
+        # Reset if necessary
+        if clear:
+            # Clean TensorBoard logging directory
+            if tf.gfile.Exists(self.log_dir):
+                tf.gfile.DeleteRecursively(self.log_dir)
 
     def inference(self, inputs, **kwargs):
         """Model inference.
@@ -104,82 +110,6 @@ class TFNeuralNetwork(object):
         raise Exception('Loss function should be overwritten!')
         return loss
 
-    def load(self, model_checkpoint_path=None):
-        """Load checkpoint.
-
-        Arguments:
-            model_checkpoint_path -- checkpoint path, search last if not passed
-
-        """
-        if model_checkpoint_path is None:
-            model_checkpoint_path = tf.train.latest_checkpoint(self.log_dir)
-            assert model_checkpoint_path is not None, \
-                'Checkpoint path automatically not found.'
-
-        print('Start loading model...')
-
-        # Save loading information
-        self.loaded = True
-
-        # Get metagraph saver
-        self._saver = tf.train.import_meta_graph(model_checkpoint_path + '.meta',
-                                           clear_devices=True)
-
-        # Create a session for running Ops on the Graph
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        self.sess = tf.Session(config=config)
-
-        # Restore model from saver
-        self._saver.restore(self.sess, model_checkpoint_path)
-
-        # Get named tensors
-        self.inputs = self.sess.graph.get_tensor_by_name('inputs:0')
-        self.targets = self.sess.graph.get_tensor_by_name('targets:0')
-        self.outputs = self.sess.graph.get_tensor_by_name('outputs:0')
-        self.loss = self.sess.graph.get_tensor_by_name('loss:0')
-        self.dropout = self.sess.graph.get_tensor_by_name('dropout:0')
-        self.global_step = self.sess.graph.get_tensor_by_name('global_step:0')
-
-        def load_collection(collection):
-            collection_variables = self.sess.graph.get_collection(collection)
-            collection_metrics = {}
-            for var in collection_variables:
-                key = self._basename_tensor(var)
-                collection_metrics[key] = var
-            return collection_metrics
-
-        # Options
-        self.options = load_collection('options')
-
-        # Metrics
-        for collection in self.metrics:
-            self.metrics[collection] = load_collection('metric_' + collection)
-            self._update_ops[collection] = load_collection('update_op_' + collection)
-
-        # Summaries
-        for collection in self._summaries:
-            self._summaries[collection] = tf.summary.merge_all(collection)
-
-        # Input, Target and Output layer shapes
-        self.inputs_shape = self.inputs.shape.as_list()[1:]
-        self.targets_shape = self.targets.shape.as_list()[1:]
-        self.outputs_shape = self.outputs.shape.as_list()[1:]
-
-        # Instantiate a SummaryWriter to output summaries and the Graph
-        self._summary_writer = tf.summary.FileWriter(self.log_dir,
-                                                     self.sess.graph)
-
-        # Projector config object
-        self._projector_config = projector.ProjectorConfig()
-
-        # Run the Op to initialize the variables
-        self.initialize_variables(init_global=False, init_local=True)
-
-        # Enable initialization flag
-        self.init = True
-        print('Model loaded from: %s' % model_checkpoint_path)
-
     def initialize(self,
                    inputs_shape,
                    targets_shape,
@@ -187,7 +117,6 @@ class TFNeuralNetwork(object):
                    inputs_type=tf.float32,
                    targets_type=tf.float32,
                    outputs_type=tf.float32,
-                   clear_log_dir=True,
                    **kwargs):
         """Initialize model.
 
@@ -198,17 +127,10 @@ class TFNeuralNetwork(object):
             inputs_type -- type of inputs layer
             targets_type -- type of targets layer
             outputs_type -- type of outputs layer
-            clear_log_dir -- indicator of clearing logging directory
             kwargs -- dictionary of keyword arguments
 
         """
         print('Start initializing model...')
-
-        # Reset if necessary
-        if clear_log_dir:
-            # Clean TensorBoard logging directory
-            if tf.gfile.Exists(self.log_dir):
-                tf.gfile.DeleteRecursively(self.log_dir)
 
         # Create TensorBoard logging directory
         if not tf.gfile.Exists(self.log_dir):
@@ -218,9 +140,6 @@ class TFNeuralNetwork(object):
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
         self.sess = tf.Session(config=config)
-
-        # Options
-        self.options = kwargs
 
         # Input, Target and Output layer shapes
         self.inputs_shape = list(inputs_shape)
@@ -236,11 +155,13 @@ class TFNeuralNetwork(object):
                                       name='targets')
 
         # Build a Graph that computes predictions from the inference model
-        outputs = self.inference(self.inputs, **self.options)
+        with tf.variable_scope('inference'):
+            outputs = self.inference(self.inputs, **kwargs)
         self.outputs = tf.identity(outputs, name='outputs')
 
         # Loss function
-        loss = self.loss_function(self.targets, self.outputs, **self.options)
+        with tf.variable_scope('loss_function'):
+            loss = self.loss_function(self.targets, self.outputs, **kwargs)
         self.loss = tf.identity(loss, name='loss')
 
         # Dropout tensor
@@ -275,9 +196,14 @@ class TFNeuralNetwork(object):
             name -- name of tensor
             value -- data value for tensor
 
+        Return:
+            option -- tensorflow variable
+
         """
-        option = tf.Variable(value, name=name, trainable=False)
-        self.sess.graph.add_to_collection('options', option)
+        with tf.variable_scope('options', reuse=True):
+            option = tf.Variable(value, name=name, trainable=False)
+            self.options[name] = option
+        return option
 
     def initialize_variables(self, init_global, init_local):
         """Initialize global and local variables and create new saver.
@@ -361,34 +287,104 @@ class TFNeuralNetwork(object):
                 self._update_ops[collection][key] = update_op
 
     @check_initialization
+    def get_train_op(self,
+                     optimizer=tf.train.RMSPropOptimizer,
+                     learning_rate=0.001,
+                     max_gradient_norm=None):
+        """Get training operation.
+
+        Arguments:
+            optimizer -- tensorflow optimizer object
+            learning_rate -- initial gradient descent step
+            max_gradient_norm -- maximal gradient norm for clipping
+
+        Return:
+            trin_op -- training operation
+
+        """
+        optimizer_op = optimizer(learning_rate)
+
+        # Calculate gradients
+        tvars = tf.trainable_variables()
+        gradients = tf.gradients(self.loss, tvars)
+
+        # Add tvars metric
+        flatten_tvars = []
+        for tvar in tvars:
+            flatten_tvars.append(tf.reshape(tvar, [-1,]))
+        concat_tvars = tf.concat(flatten_tvars, 0,
+                                 name='all_tvars')
+        self.add_metric(concat_tvars, collections=['batch_train'])
+
+        # Add gradients metric
+        flatten_gradients = []
+        for gradient in gradients:
+            flatten_gradients.append(tf.reshape(gradient, [-1,]))
+        concat_gradients = tf.concat(flatten_gradients, 0,
+                                     name='all_gradients')
+        self.add_metric(concat_gradients, collections=['batch_train'])
+
+        # Gradient clipping if necessary
+        if max_gradient_norm is not None:
+            # Calculate clipping gradients
+            clip_gradients, gradient_norm = tf.clip_by_global_norm(gradients, 
+                                                                   max_gradient_norm)
+            
+            # Add clipping gradients metric
+            flatten_clip_gradients = []
+            for clip_gradient in clip_gradients:
+                flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
+            concat_clip_gradients = tf.concat(flatten_clip_gradients, 0,
+                                              name='all_clip_gradients')
+            self.add_metric(concat_clip_gradients, collections=['batch_train'])
+            self.add_metric(tf.identity(gradient_norm, 'gradient_norm'), collections=['batch_train'])
+
+            # Add to the Graph the Ops that apply gradients
+            train_op = optimizer_op.apply_gradients(zip(clip_gradients, tvars),
+                                                    global_step=self.global_step,
+                                                    name='train_op')
+        else:
+            # Add to the Graph the Ops that minimize loss
+            train_op = optimizer_op.minimize(self.loss,
+                                             global_step=self.global_step,
+                                             name='train_op')
+
+        # Save options
+        self._optimizer = optimizer
+        self._learning_rate = learning_rate
+        self._max_gradient_norm = max_gradient_norm
+
+        # Run the Op to initialize the variables
+        self.initialize_variables(init_global=True, init_local=True)
+
+        return train_op
+
+    @check_initialization
     @check_fit_arguments
     def fit(self,
+            train_op,
             train_set,
             epoch_count=None,
             iter_count=None,
-            optimizer=tf.train.RMSPropOptimizer,
-            learning_rate=0.001,
             val_set=None,
             summarizing_period=100,
             logging_period=100,
             checkpoint_period=10000,
             evaluation_period=10000,
-            max_gradient_norm=None,
             best_val_key=None):
         """Train model.
 
         Arguments:
+            train_op -- training operation
             train_set -- dataset for training
             epoch_count -- training epochs count
             iter_count -- training iterations count
-            optimizer -- tensorflow optimizer object
             learning_rate -- initial gradient descent step or tensor
             val_set -- dataset for validation
             summarizing_period -- iterations count between summarizing
             logging_period -- iterations count between logging to stdout
             checkpoint_period -- iterations count between saving checkpoint
             evaluation_period -- iterations count between evaluation
-            max_gradient_norm -- maximal gradient norm for clipping
             best_val_key -- metric key for saving best validation checkpoint
 
         """
@@ -410,22 +406,16 @@ class TFNeuralNetwork(object):
             print('Init iteration is equal to iteration count.')
             return
 
-        # Get training operation
-        train_op = self._get_train_op(optimizer, learning_rate, max_gradient_norm)
-
         # Print training options
-        self._print_training_options(self._epoch_count,
-                                     self._iter_count,
-                                     optimizer,
-                                     learning_rate,
-                                     train_set.batch_size,
-                                     val_set.batch_size if val_set else None,
-                                     summarizing_period,
-                                     logging_period,
-                                     checkpoint_period,
-                                     evaluation_period,
-                                     max_gradient_norm,
-                                     best_val_key)
+        self._print_fitting_options(self._epoch_count,
+                                    self._iter_count,
+                                    train_set.batch_size,
+                                    val_set.batch_size if val_set else None,
+                                    summarizing_period,
+                                    logging_period,
+                                    checkpoint_period,
+                                    evaluation_period,
+                                    best_val_key)
 
         # Calculate initial result on validation set
         if val_set is not None and best_val_key is not None:
@@ -605,14 +595,20 @@ class TFNeuralNetwork(object):
         print('Model saved to: %s' % saved_filename)
     
     @check_initialization
-    def restore(self, filename):
+    def restore(self, filename=None):
         """Restore checkpoint only if model initialized.
         
         Arguments:
             filename -- path to checkpoint
         
         """
+        if filename is None:
+            filename = tf.train.latest_checkpoint(self.log_dir)
+            assert filename is not None, \
+                'Checkpoint path automatically not found.'
+
         self._saver.restore(self.sess, filename)
+        self.restored = True
 
     @check_initialization
     def save_best_on_validation(self, result):
@@ -630,6 +626,7 @@ class TFNeuralNetwork(object):
     def restore_best_on_validation(self):
         """Restore checkpoint with best result on validation set."""
         self.restore(self._best_val_checkpoint)
+        self.restored = True
 
     @check_initialization
     @check_inputs_values
@@ -662,7 +659,7 @@ class TFNeuralNetwork(object):
                     buf = ''
                     keys = sorted(list(self.options.keys()))
                     for key in keys:
-                        buf += '%30s: %s\n' % (key, self.options[key])
+                        buf += '%30s: %s\n' % (key, self.options[key].eval(session=self.sess))
                     string += '%20s:\n%s' % (attr, buf)
                 else:
                     string += '%20s: %s\n' % (attr, getattr(self, attr))
@@ -691,91 +688,24 @@ class TFNeuralNetwork(object):
         self._iter_count = iter_count
         self._epoch_count = epoch_count
 
-    def _get_train_op(self, optimizer, learning_rate, max_gradient_norm):
-        """Get training operation.
-
-        Arguments:
-            optimizer -- tensorflow optimizer object
-            learning_rate -- initial gradient descent step
-            max_gradient_norm -- maximal gradient norm for clipping
-
-        Return:
-            trin_op -- training operation
-
-        """
-        if not self.loaded:
-            optimizer_op = optimizer(learning_rate)
-
-            # Calculate gradients
-            tvars = tf.trainable_variables()
-            gradients = tf.gradients(self.loss, tvars)
-
-            # Add tvars metric
-            flatten_tvars = []
-            for tvar in tvars:
-                flatten_tvars.append(tf.reshape(tvar, [-1,]))
-            concat_tvars = tf.concat(flatten_tvars, 0,
-                                     name='all_tvars')
-            self.add_metric(concat_tvars, collections=['batch_train'])
-
-            # Add gradients metric
-            flatten_gradients = []
-            for gradient in gradients:
-                flatten_gradients.append(tf.reshape(gradient, [-1,]))
-            concat_gradients = tf.concat(flatten_gradients, 0,
-                                         name='all_gradients')
-            self.add_metric(concat_gradients, collections=['batch_train'])
-
-            # Gradient clipping if necessary
-            if max_gradient_norm is not None:
-                # Calculate clipping gradients
-                clip_gradients, gradient_norm = tf.clip_by_global_norm(gradients, 
-                                                                       max_gradient_norm)
-                
-                # Add clipping gradients metric
-                flatten_clip_gradients = []
-                for clip_gradient in clip_gradients:
-                    flatten_clip_gradients.append(tf.reshape(clip_gradient, [-1,]))
-                concat_clip_gradients = tf.concat(flatten_clip_gradients, 0,
-                                                  name='all_clip_gradients')
-                self.add_metric(concat_clip_gradients, collections=['batch_train'])
-                self.add_metric(tf.identity(gradient_norm, 'gradient_norm'), collections=['batch_train'])
-
-                # Add to the Graph the Ops that apply gradients
-                train_op = optimizer_op.apply_gradients(zip(clip_gradients, tvars),
-                                                        global_step=self.global_step,
-                                                        name='train_op')
-            else:
-                # Add to the Graph the Ops that minimize loss
-                train_op = optimizer_op.minimize(self.loss,
-                                                 global_step=self.global_step,
-                                                 name='train_op')
-
-            # Run the Op to initialize the variables
-            self.initialize_variables(init_global=True, init_local=True)
-        else:
-            train_op = self.sess.graph.get_operation_by_name('train_op')
-        return train_op
-
-    def _print_training_options(self,
-                                epoch_count,
-                                iter_count,
-                                optimizer,
-                                learning_rate,
-                                train_batch_size,
-                                val_batch_size,
-                                summarizing_period,
-                                logging_period,
-                                checkpoint_period,
-                                evaluation_period,
-                                max_gradient_norm,
-                                best_val_key):
+    def _print_fitting_options(self,
+                               epoch_count,
+                               iter_count,
+                               train_batch_size,
+                               val_batch_size,
+                               summarizing_period,
+                               logging_period,
+                               checkpoint_period,
+                               evaluation_period,
+                               best_val_key):
         """Formatted print training options."""
+        print('%20s: %s' % ('optimizer', self._optimizer))
+        print('%20s: %s' % ('learning_rate', self._learning_rate))
+        if self._max_gradient_norm is not None:
+            print('%20s: %s' % ('max_gradient_norm', self._max_gradient_norm))
         if epoch_count:
             print('%20s: %s' % ('epoch_count', epoch_count))
         print('%20s: %s' % ('iter_count', iter_count))
-        print('%20s: %s' % ('optimizer', optimizer))
-        print('%20s: %s' % ('learning_rate', learning_rate))
         print('%20s: %s' % ('train_batch_size', train_batch_size))
         if val_batch_size:
             print('%20s: %s' % ('val_batch_size', val_batch_size))
@@ -783,8 +713,6 @@ class TFNeuralNetwork(object):
         print('%20s: %s' % ('logging_period', logging_period))
         print('%20s: %s' % ('checkpoint_period', checkpoint_period))
         print('%20s: %s' % ('evaluation_period', evaluation_period))
-        if max_gradient_norm is not None:
-            print('%20s: %s' % ('max_gradient_norm', max_gradient_norm))
         if best_val_key is not None:
             print('%20s: %s' % ('best_val_key', best_val_key))
         buf = ''

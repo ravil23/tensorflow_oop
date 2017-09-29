@@ -51,15 +51,12 @@ def run(args):
     print('Testing    set shape: %s\n' % test_set.str_shape())
 
     # Initialization
-    model = MnistFFN(log_dir=args.log_dir)
-    if args.load:
-        model.load()
-    else:
-        model.initialize(classes_count=10,
-                         inputs_shape=train_set.data_shape,
-                         outputs_shape=[10],
-                         k_values=[5, 1],
-                         hidden_size=args.hidden_size)
+    model = MnistFFN(log_dir=args.log_dir, clear=not args.load)
+    model.initialize(classes_count=10,
+                     inputs_shape=train_set.data_shape,
+                     outputs_shape=[10],
+                     k_values=[5, 1],
+                     hidden_size=args.hidden_size)
     print('%s\n' % model)
 
     # Add learning rate decay
@@ -67,11 +64,16 @@ def run(args):
                                                name='learning_rate')
     model.add_metric(learning_rate, collections=['batch_train'])
 
+    # Get training operation
+    train_op = model.get_train_op()
+    print 'HIII'
+    
     # Fitting model
-    model.fit(train_set,
+    if args.load:
+        model.restore()
+    model.fit(train_op, train_set,
               epoch_count=args.epoch_count,
               val_set=val_set,
-              learning_rate=learning_rate,
               best_val_key='top_1_accuracy')
 
     # Evaluation
