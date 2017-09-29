@@ -100,10 +100,7 @@ class TFDataset(object):
         """Update data value."""
         self.size = len(data)
         data = np.asarray(data)
-        if data.ndim == 1:
-            self.data = np.reshape(data, (self.size, 1))
-        else:
-            self.data = data
+        self.data = data
         self.data_shape = list(self.data.shape[1:])
         self.data_ndim = len(self.data_shape)
 
@@ -121,10 +118,7 @@ class TFDataset(object):
         """Update labels value."""
         self.size = len(labels)
         labels = np.asarray(labels)
-        if labels.ndim == 1:
-            self.labels = np.reshape(labels, (self.size, 1))
-        else:
-            self.labels = labels
+        self.labels = labels
         self.labels_shape = list(self.labels.shape[1:])
         self.labels_ndim = len(self.labels_shape)
 

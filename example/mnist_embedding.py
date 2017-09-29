@@ -42,7 +42,7 @@ class MnistEmbedding(TFEmbedding):
 
 def run(args):
     print('Loading dataset...')
-    mnist = input_data.read_data_sets(args.input)
+    mnist = input_data.read_data_sets(args.input, one_hot=False)
     train_set = TFTripletset(mnist.train.images, mnist.train.labels)
     train_set.set_batch_size(args.batch_size, args.batch_positives_count)
     val_set = TFTripletset(mnist.validation.images, mnist.validation.labels)

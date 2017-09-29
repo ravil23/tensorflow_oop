@@ -51,7 +51,7 @@ class MnistRNN(TFClassifier):
 
 def run(args):
     print('Loading dataset...')
-    mnist = input_data.read_data_sets(args.input, one_hot=True)
+    mnist = input_data.read_data_sets(args.input, one_hot=False)
     reshaped_data = np.reshape(mnist.train.images, [-1, 28, 28])
     train_set = TFSequence(reshaped_data, mnist.train.labels)
     train_set.set_batch_size(args.batch_size)
@@ -70,9 +70,9 @@ def run(args):
     if args.load:
         model.load()
     else:
-        model.initialize(inputs_shape=train_set.data_shape,
-                         targets_shape=train_set.labels_shape,
-                         outputs_shape=train_set.labels_shape,
+        model.initialize(classes_count=10,
+                         inputs_shape=train_set.data_shape,
+                         outputs_shape=[10],
                          hidden_size=args.hidden_size)
     print('%s\n' % model)
 
@@ -85,7 +85,7 @@ def run(args):
     if val_set is not None:
         model.evaluate_and_log(val_set)
     if test_set is not None:
-        model.evaluate_and_log(test_set))
+        model.evaluate_and_log(test_set)
 
     if args.show:
         print('Showing test set...')

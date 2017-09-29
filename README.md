@@ -40,4 +40,3 @@ cat files.txt | xargs rm -rf
 1. Add dropout
 2. Add loading local variables
 3. Add word2vec implementation
-4. Top K outputs

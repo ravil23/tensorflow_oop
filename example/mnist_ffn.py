@@ -39,7 +39,7 @@ class MnistFFN(TFClassifier):
 
 def run(args):
     print('Loading dataset...')
-    mnist = input_data.read_data_sets(args.input, one_hot=True)
+    mnist = input_data.read_data_sets(args.input, one_hot=False)
     train_set = TFDataset(mnist.train.images, mnist.train.labels)
     train_set.set_batch_size(args.batch_size)
     val_set = TFDataset(mnist.validation.images, mnist.validation.labels)
@@ -55,9 +55,10 @@ def run(args):
     if args.load:
         model.load()
     else:
-        model.initialize(inputs_shape=train_set.data_shape,
-                         targets_shape=train_set.labels_shape,
-                         outputs_shape=train_set.labels_shape,
+        model.initialize(classes_count=10,
+                         inputs_shape=train_set.data_shape,
+                         outputs_shape=[10],
+                         k_values=[5, 1],
                          hidden_size=args.hidden_size)
     print('%s\n' % model)
 
@@ -71,7 +72,7 @@ def run(args):
               epoch_count=args.epoch_count,
               val_set=val_set,
               learning_rate=learning_rate,
-              best_val_key='accuracy')
+              best_val_key='top_1_accuracy')
 
     # Evaluation
     if train_set is not None:
