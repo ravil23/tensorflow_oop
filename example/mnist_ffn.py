@@ -13,10 +13,10 @@ from tensorflow_oop.classification import *
 
 # Define model
 class MnistFFN(TFClassifier):
-    def inference(self, inputs, **kwargs):
-        # Get arguments
+    def inference(self, inputs):
+        # Get options
         input_size = self.inputs_shape[0]
-        hidden_size = kwargs['hidden_size']
+        hidden_size = self.options['hidden_size']
         output_size = self.outputs_shape[0]
 
         # Hidden fully connected layer
@@ -55,34 +55,27 @@ def run(args):
     model.initialize(classes_count=10,
                      inputs_shape=train_set.data_shape,
                      outputs_shape=[10],
-                     k_values=[5, 1],
+                     k_values=[1,5],
                      hidden_size=args.hidden_size)
-    print('%s\n' % model)
 
     # Add learning rate decay
-    learning_rate = tf.train.exponential_decay(0.01, model.global_step, 1000, 0.97,
-                                               name='learning_rate')
-    model.add_metric(learning_rate, collections=['batch_train'])
-
-    # Get training operation
-    train_op = model.get_train_op()
-    print 'HIII'
+    learning_rate = tf.train.exponential_decay(0.01, model.global_step, 1000, 0.97)
+    model.add_metric(learning_rate, collections=['batch_train'], key='learning_rate')
     
     # Fitting model
     if args.load:
         model.restore()
-    model.fit(train_op, train_set,
-              epoch_count=args.epoch_count,
+    model.fit(train_set,
               val_set=val_set,
-              best_val_key='top_1_accuracy')
+              epoch_count=args.epoch_count)
 
     # Evaluation
     if train_set is not None:
-        model.evaluate_and_log(train_set)
+        model.evaluate_and_log(train_set, collection='eval_train')
     if val_set is not None:
-        model.evaluate_and_log(val_set)
+        model.evaluate_and_log(val_set, collection='eval_validation')
     if test_set is not None:
-        model.evaluate_and_log(test_set)
+        model.evaluate_and_log(test_set, collection='eval_test')
 
     if args.show:
         print('Showing test set...')

@@ -13,10 +13,10 @@ from tensorflow_oop.classification import *
 
 # Define model
 class MnistRNN(TFClassifier):
-    def inference(self, inputs, **kwargs):
-        # Get arguments
+    def inference(self, inputs):
+        # Get options
         input_size = self.inputs_shape[0]
-        hidden_size = kwargs['hidden_size']
+        hidden_size = self.options['hidden_size']
         output_size = self.outputs_shape[0]
 
         # Init stack of RNN cells
@@ -66,26 +66,24 @@ def run(args):
     print('Testing    set shape: %s\n' % test_set.str_shape())
 
     # Initialization
-    model = MnistRNN(log_dir=args.log_dir)
-    if args.load:
-        model.load()
-    else:
-        model.initialize(classes_count=10,
-                         inputs_shape=train_set.data_shape,
-                         outputs_shape=[10],
-                         hidden_size=args.hidden_size)
-    print('%s\n' % model)
+    model = MnistRNN(log_dir=args.log_dir, clear=not args.load)
+    model.initialize(classes_count=10,
+                     inputs_shape=train_set.data_shape,
+                     outputs_shape=[10],
+                     hidden_size=args.hidden_size)
 
     # Fitting model
-    model.fit(train_set, epoch_count=args.epoch_count, val_set=val_set)
-    
+    if args.load:
+        model.restore()
+    model.fit(train_set, val_set=val_set, epoch_count=args.epoch_count)
+
     # Evaluation
     if train_set is not None:
-        model.evaluate_and_log(train_set)
+        model.evaluate_and_log(train_set, collection='eval_train')
     if val_set is not None:
-        model.evaluate_and_log(val_set)
+        model.evaluate_and_log(val_set, collection='eval_validation')
     if test_set is not None:
-        model.evaluate_and_log(test_set)
+        model.evaluate_and_log(test_set, collection='eval_test')
 
     if args.show:
         print('Showing test set...')

@@ -2,7 +2,6 @@
 Embedding base models.
 """
 
-import warnings
 import sys
 import os
 
@@ -165,28 +164,28 @@ class TFEmbedding(TFNeuralNetwork):
         self.add_metric(tf.identity(max_centroid_fscore, 'max_centroid_fscore'),
                         collections=['batch_train', 'batch_validation', 'log_train'])
 
-    def loss_function(self, targets, outputs, **kwargs):
+    def loss_function(self, targets, outputs):
         """Compute the triplet loss by mini-batch of triplet embeddings.
 
         Arguments:
             targets -- tensor of batch with targets
             outputs -- tensor of batch with outputs
-            kwargs -- dictionary of keyword arguments
 
         Return:
             loss -- triplet loss operation
 
         """
-        assert 'margin' in kwargs, \
+        assert 'margin' in self.options, \
             '''Argument \'margin\' should be passed:
-            kwargs = %s''' % kwargs
+            self.options = %s''' % self.options
 
-        assert 'exclude_hard' in kwargs, \
+        assert 'exclude_hard' in self.options, \
             '''Argument \'exclude_hard\' should be passed:
-            kwargs = %s''' % kwargs
+            self.options = %s''' % self.options
 
-        margin = self.add_option_to_graph('margin', kwargs['margin'])
-        exclude_hard = self.add_option_to_graph('exclude_hard', kwargs['exclude_hard'])
+        # Get options
+        margin = self.options['margin']
+        exclude_hard = self.options['exclude_hard']
 
         def triplet_loss(margin):
             """Triplet loss function for a given anchor."""

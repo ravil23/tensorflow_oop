@@ -58,8 +58,8 @@ class TestTFDataset(unittest.TestCase):
         self.assertEqual(self.empty.size, 3)
         self.assertEqual(self.empty.data_shape, None)
         self.assertEqual(self.empty.data_ndim, None)
-        self.assertEqual(self.empty.labels_shape, [1])
-        self.assertEqual(self.empty.labels_ndim, 1)
+        self.assertEqual(self.empty.labels_shape, [])
+        self.assertEqual(self.empty.labels_ndim, 0)
         self.assertTrue(self.empty.init)
 
         self.dataset3.normalize(True)
@@ -74,8 +74,8 @@ class TestTFDataset(unittest.TestCase):
         self.assertEqual(self.empty.size, 3)
         self.assertEqual(self.empty.data_shape, [2])
         self.assertEqual(self.empty.data_ndim, 1)
-        self.assertEqual(self.empty.labels_shape, [1])
-        self.assertEqual(self.empty.labels_ndim, 1)
+        self.assertEqual(self.empty.labels_shape, [])
+        self.assertEqual(self.empty.labels_ndim, 0)
         self.assertTrue(self.empty.init)
 
     def test_copy(self):
@@ -157,19 +157,19 @@ class TestTFDataset(unittest.TestCase):
         self.dataset3.set_batch_size(2)
         batch = self.dataset3.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[1,2],[3,4]])))
-        self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[1],[2]])))
+        self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([1,2])))
         self.assertTrue(np.all(batch.data == self.dataset3.last_batch.data))
         self.assertTrue(np.all(batch.labels == self.dataset3.last_batch.labels))
 
         batch = self.dataset3.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[5,6],[1,2]])))
-        self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[3],[1]])))
+        self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([3,1])))
         self.assertTrue(np.all(batch.data == self.dataset3.last_batch.data))
         self.assertTrue(np.all(batch.labels == self.dataset3.last_batch.labels))
 
         batch = self.dataset3.next_batch()
         self.assertTrue(np.all(np.asarray(batch.data) == np.asarray([[3,4],[5,6]])))
-        self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([[2],[3]])))
+        self.assertTrue(np.all(np.asarray(batch.labels) == np.asarray([2,3])))
         self.assertTrue(np.all(batch.data == self.dataset3.last_batch.data))
         self.assertTrue(np.all(batch.labels == self.dataset3.last_batch.labels))
 

@@ -21,33 +21,13 @@ class TFClassifier(TFNeuralNetwork):
                                              'softmax', 'predictions',
                                              'top_k_placeholder', 'top_k_softmax']
 
-    def load(self, model_checkpoint_path=None, k_values=None):
-        """Load checkpoint.
-
-        Arguments:
-            model_checkpoint_path -- checkpoint path, search last if not passed
-            k_values -- container of k values for top prediction metrics
-
-        """
-        super(TFClassifier, self).load(model_checkpoint_path=model_checkpoint_path)
-
-        # Get probability operation
-        self.classes_count = self.sess.graph.get_tensor_by_name('classes_count:0')
-        self.one_hot_targets = self.sess.graph.get_tensor_by_name('one_hot_targets:0')
-        self.softmax = self.sess.graph.get_tensor_by_name('softmax:0')
-        self.predictions = self.sess.graph.get_tensor_by_name('predictions:0')
-        self.top_k_placeholder = self.sess.graph.get_tensor_by_name('top_k_placeholder:0')
-        self.top_k_softmax = self.sess.graph.get_tensor_by_name('top_k_softmax:0')
-
-        # Add basic classification metrics
-        self._add_basic_classification_metrics(k_values)
-
     def initialize(self,
                    classes_count,
                    inputs_shape,
                    outputs_shape,
                    inputs_type=tf.float32,
                    outputs_type=tf.float32,
+                   print_self=True,
                    k_values=None,
                    **kwargs):
         """Initialize model.
@@ -58,6 +38,7 @@ class TFClassifier(TFNeuralNetwork):
             outputs_shape -- shape of outputs layer
             inputs_type -- type of inputs layer
             outputs_type -- type of outputs layer
+            print_self -- indicator of printing model after initialization
             k_values -- container of k values for top prediction metrics
             kwargs -- dictionary of keyword arguments
 
@@ -68,6 +49,7 @@ class TFClassifier(TFNeuralNetwork):
                                              inputs_type=inputs_type,
                                              targets_type=tf.int32,
                                              outputs_type=outputs_type,
+                                             print_self=False,
                                              **kwargs)
         # Save classes count
         self.classes_count = tf.constant(classes_count, name='classes_count')
@@ -90,13 +72,15 @@ class TFClassifier(TFNeuralNetwork):
         # Add basic classification metrics
         self._add_basic_classification_metrics(k_values)
 
-    def loss_function(self, targets, outputs, **kwargs):
+        if print_self:
+            print('%s\n' % self)
+
+    def loss_function(self, targets, outputs):
         """Cross entropy for only one correct answer.
 
         Arguments:
             targets -- tensor of batch with targets
             outputs -- tensor of batch with outputs
-            kwargs -- dictionary of options
 
         Return:
             loss -- cross entropy error operation

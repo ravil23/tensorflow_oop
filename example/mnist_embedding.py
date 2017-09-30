@@ -13,10 +13,10 @@ from tensorflow_oop.embedding import *
 
 # Define model
 class MnistEmbedding(TFEmbedding):
-    def inference(self, inputs, **kwargs):
-        # Get arguments
+    def inference(self, inputs):
+        # Get options
         input_size = self.inputs_shape[0]
-        hidden_size = kwargs['hidden_size']
+        hidden_size = self.options['hidden_size']
         output_size = self.outputs_shape[0]
 
         # Hidden fully connected layer
@@ -54,19 +54,17 @@ def run(args):
     print('Testing    set shape: %s\n' % test_set.str_shape())
 
     # Initialization
-    model = MnistEmbedding(log_dir=args.log_dir)
-    if args.load:
-        model.load()
-    else:
-        model.initialize(inputs_shape=train_set.data_shape,
-                         outputs_shape=[args.embedding_size],
-                         hidden_size=args.hidden_size,
-                         margin=args.margin,
-                         exclude_hard=args.exclude_hard)
-    print('%s\n' % model)
+    model = MnistEmbedding(log_dir=args.log_dir, clear=not args.load)
+    model.initialize(inputs_shape=train_set.data_shape,
+                     outputs_shape=[args.embedding_size],
+                     hidden_size=args.hidden_size,
+                     margin=args.margin,
+                     exclude_hard=args.exclude_hard)
 
     # Fitting model
-    model.fit(train_set, epoch_count=args.epoch_count, val_set=val_set)
+    if args.load:
+        model.restore()
+    model.fit(train_set, val_set=val_set, epoch_count=args.epoch_count)
 
     # Calculate visualisation embeddings and labels
     vis_train_embeddings = model.forward(train_set.data[:args.vis_count])
