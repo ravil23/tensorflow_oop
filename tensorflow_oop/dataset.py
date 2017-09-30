@@ -31,10 +31,17 @@ class TFBatch:
     """
 
     def __init__(self, **kwargs):
+        """Constructor.
+
+        Arguments:
+            kwargs      Dict of arguments for store as batch atributes.
+
+        """
         for key in kwargs:
             setattr(self, key, kwargs[key])
 
     def __str__(self):
+        """String formatting."""
         string = 'TFBatch object:\n'
         for attr in self.__dict__:
             string += '%20s:\n%s\n' % (attr, getattr(self, attr))
@@ -47,16 +54,40 @@ class TFDataset(object):
     Dataset of features.
     Data shape description:   [size, data_shape]
     Labels shape description: [size, labels_shape]
+
+    Attributes:
+        init               Indicator of initializing dataset.
+        size               Size of dataset.
+        data               Array like data values.
+        data_shape         Shape of data without first dimension.
+        data_ndim          Data dimensions count without first dimension.
+        labels             Array like labels values.
+        labels_shape       Shape of labels without first dimension.
+        labels_ndim        Labels dimensions count without first dimension.
+        batch_size         Elements count per batch.
+        batch_num          Numeric batch counter.
+        last_batch         Last generated batch (not full batch).
+        normalized         Indicator of normalizing dataset.
+        norm_global        Indicator of global normalization.
+        norm_mean          Mean value of data before normalizing.
+        norm_std           Standart deviation value of data before normalizing.
+
     """
 
     __slots__ = ['init', 'size',
                  'data', 'data_shape', 'data_ndim',
                  'labels', 'labels_shape', 'labels_ndim',
                  'batch_size', 'batch_num', 'last_batch',
-                 'normalized', 'normalization_global',
-                 'normalization_mean', 'normalization_std']
+                 'normalized', 'norm_global', 'norm_mean', 'norm_std']
 
     def __init__(self, data=None, labels=None):
+        """Constructor.
+
+        Arguments:
+            data        Array like values for store as data attribute.
+            labels      Array like values for store as labels attribute.
+
+        """
         for attr in self.__slots__:
             setattr(self, attr, None)
         self.init = False
@@ -67,12 +98,24 @@ class TFDataset(object):
             self.initialize(data=data, labels=labels)
 
     def copy(self, other):
-        """Copy other dataframe."""
+        """Copy other dataset.
+
+        Arguments:
+            other       Other dataset.
+
+        """
         for attr in self.__slots__:
             setattr(self, attr, getattr(other, attr))
 
     def initialize(self, data, labels):
-        """Set data and labels."""
+        """Set data and labels.
+
+        Arguments:
+            data        Array like values for store as data attribute.
+            labels      Array like values for store as labels attribute.
+
+        """
+
         assert data is not None or labels is not None, \
             '''Data or labels should be passed:
             data = %s, labels = %s''' % (data, labels)
@@ -97,7 +140,12 @@ class TFDataset(object):
         self.init = True
 
     def _set_data(self, data):
-        """Update data value."""
+        """Update data value.
+
+        Arguments:
+            data        Array like values for store as data attribute.
+
+        """
         self.size = len(data)
         data = np.asarray(data)
         self.data = data
@@ -110,12 +158,17 @@ class TFDataset(object):
         self.data_shape = None
         self.data_ndim = None
         self.normalized = None
-        self.normalization_global = None
-        self.normalization_mean = None
-        self.normalization_std = None
+        self.norm_global = None
+        self.norm_mean = None
+        self.norm_std = None
 
     def _set_labels(self, labels):
-        """Update labels value."""
+        """Update labels value.
+
+        Arguments:
+            labels      Array like values for store as labels attribute.
+
+        """
         self.size = len(labels)
         labels = np.asarray(labels)
         self.labels = labels
@@ -138,7 +191,13 @@ class TFDataset(object):
 
     @check_initialization
     def set_batch_size(self, batch_size):
-        """Set batch size."""
+        """Set batch size.
+
+        Arguments:
+            batch_size  Elements count per batch.
+
+        """
+
         assert batch_size > 0, \
             '''Batch size should be greater then zero:
             batch_size = %s''' % batch_size
@@ -175,12 +234,21 @@ class TFDataset(object):
 
     @check_initialization
     def full_batch(self):
-        """Get full batch."""
+        """Get full batch with size as dataset."""
         return TFBatch(data=self.data, labels=self.labels)
 
     @check_initialization
     def iterbatches(self, count=None):
-        """Get iterator by batches."""
+        """Get iterator by batches.
+
+        Arguments:
+            count       Count of iterations, if not passed,
+                        auto calculated batches count for one epoch.
+
+        Return:
+            batch       Iterator by batches.
+
+        """
         if count is None:
             count = self.size // self.batch_size
             if self.size % self.batch_size != 0:
@@ -190,7 +258,21 @@ class TFDataset(object):
 
     @check_initialization
     def split(self, train_size, val_size, test_size, shuffle):
-        """Split dataset to train, validation and test set."""
+        """Split dataset to train, validation and test set.
+
+        Arguments:
+            train_size  Count or rate of training size.
+            val_size    Count or rate of validation size.
+            test_size   Count or rate of testing size.
+            shuffle     Indicator of randomizing indexes before splitting.
+
+        Return:
+            train_set   Dataset for training.
+            val_set     Dataset for validation.
+            test_set    Dataset for testing.
+
+        """
+
         assert train_size >= 0, \
             '''Training size should not be less then zero:
             train_size = %s''' % train_size
@@ -285,7 +367,15 @@ class TFDataset(object):
 
     @staticmethod
     def load(filename):
-        """Load dataset from file."""
+        """Load dataset from file.
+
+        Arguments:
+            filename    Path to loading dump.
+
+        Return:
+            obj         Loaded dataset.
+
+        """
         with open(filename, 'rb') as f:
             obj = pickle.load(f)
         assert isinstance(obj, TFDataset), \
@@ -295,7 +385,12 @@ class TFDataset(object):
 
     @check_initialization
     def save(self, filename):
-        """Save dataset to file."""
+        """Save dataset to file.
+
+        Arguments:
+            filename    Path to saving dump.
+
+        """
         with open(filename, 'wb') as f:
             pickle.dump(self, f, protocol=-1)
 
@@ -305,7 +400,20 @@ class TFDataset(object):
                            sequence_step,
                            label_length=None,
                            label_offset=None):
-        """Generate sequences."""
+        """Generate sequences by slicing of dataset.
+
+        Arguments:
+            sequence_length    Length of output sequence data.
+            sequence_step      Step before neighbor sequences data.
+            label_length       Length of output sequence label.
+            label_offset       Offset of sequence label begin after sequence data end.
+
+        Return:
+            sequences          Generated sequence data.
+            labels             Generated sequence labels.
+
+        """
+
         assert self.data is not None, \
             '''Data field should be initialized: self.data = %s''' % self.data
 
@@ -345,8 +453,13 @@ class TFDataset(object):
             return np.asarray(sequences), None
 
     @check_initialization
-    def normalize(self, normalization_global):
-        """Normalize data to zero mean and one std."""
+    def normalize(self, norm_global):
+        """Normalize data to zero mean and one std.
+
+        Arguments:
+            norm_global        Indicator of global normalization.
+
+        """
         assert self.data is not None, \
             '''Data field should be initialized: self.data = %s''' % self.data
 
@@ -355,13 +468,13 @@ class TFDataset(object):
 
         result_data = self._normalize_implementation(self.data,
                                                      self.data_shape,
-                                                     normalization_global)
+                                                     norm_global)
 
         # Update dataset with normalized value
         self.data = result_data
 
-    def _normalize_implementation(self, data, data_shape, normalization_global):
-        if not normalization_global:
+    def _normalize_implementation(self, data, data_shape, norm_global):
+        if not norm_global:
             # Reshape to array of feature vectors
             if len(data_shape) > 0:
                 reshaped_data = np.reshape(data, [-1] + [np.sum(data_shape)])
@@ -373,24 +486,25 @@ class TFDataset(object):
             normalized_data = (reshaped_data - reshaped_mean) / reshaped_std
 
             # Correct data shape and save normalization properties
-            self.normalization_mean = np.reshape(reshaped_mean, data_shape)
-            self.normalization_std = np.reshape(reshaped_std, data_shape)
+            self.norm_mean = np.reshape(reshaped_mean, data_shape)
+            self.norm_std = np.reshape(reshaped_std, data_shape)
             result_data = np.reshape(normalized_data, [-1] + data_shape)
         else:
             # Save normalization properties
-            self.normalization_mean = np.mean(data)
-            self.normalization_std = np.std(data)
+            self.norm_mean = np.mean(data)
+            self.norm_std = np.std(data)
 
             # Update dataset with normalized value
-            result_data = (data - self.normalization_mean) / self.normalization_std
+            result_data = (data - self.norm_mean) / self.norm_std
 
-        self.normalization_global = normalization_global
+        self.norm_global = norm_global
         self.normalized = True
         return result_data
 
     @check_initialization
     def unnormalize(self):
         """Unnormalize dataset to original from zero mean and one std."""
+
         assert self.data is not None, \
             'Data field should be initialized: self.data = %s' % self.data
 
@@ -403,28 +517,35 @@ class TFDataset(object):
         self.data = result_data
 
     def _unnormalize_implementation(self, data, data_shape):
-        if not self.normalization_global:
+        if not self.norm_global:
             # Reshape normalization properties to vector
             if len(data_shape) > 0:
                 reshaped_data = np.reshape(data, [-1] + [np.sum(data_shape)])
             else:
                 reshaped_data = np.reshape(data, [-1])
-            reshaped_mean = np.reshape(self.normalization_mean, [-1])
-            reshaped_std = np.reshape(self.normalization_std, [-1])
+            reshaped_mean = np.reshape(self.norm_mean, [-1])
+            reshaped_std = np.reshape(self.norm_std, [-1])
 
             # Calculate unnormalized data
             unnormalized_data = reshaped_data*reshaped_std +  reshaped_mean
             result_data = np.reshape(unnormalized_data, [-1] + data_shape)
         else:
             # Calculate unnormalized data
-            result_data =  data*self.normalization_std + self.normalization_mean
+            result_data =  data*self.norm_std + self.norm_mean
 
         self.normalized = False
         return result_data
 
     @check_initialization
     def one_hot(self, encoding_size, dtype=np.float):
-        """One hot encoding."""
+        """One hot encoding of labels.
+
+        Arguments:
+            encoding_size      Number of unique values for coding.
+            dtype              Type of generated one hot labels.
+
+        """
+
         assert self.labels is not None, \
             '''Labels should be initialized: self.labels = %s''' % self.labels
 
@@ -451,12 +572,15 @@ class TFDataset(object):
         self.initialize(data=self.data, labels=one_hot_labels)
 
     def str_shape(self):
+        """Shape formatting as string."""
         return '%s : %s -> %s' % (self.size, self.data_shape, self.labels_shape)
 
     def __len__(self):
+        """Size of dataset."""
         return self.size
 
     def __str__(self):
+        """String formatting."""
         string = 'TFDataset object:\n'
         for attr in self.__slots__:
             if attr != 'data' and attr != 'labels':
@@ -473,10 +597,19 @@ class TFSequence(TFDataset):
     Dataset of different length sequences of features.
     Data shape description:   [size, sequence_length, data_shape]
     Labels shape description: [size, labels_shape]
+
+    Attributes:
+        ...         Parrent class atributes.
+
     """
 
     def _set_data(self, data):
-        """Update data value."""
+        """Update data value.
+
+        Arguments:
+            data        Array like values for store as data attribute.
+
+        """
         unique_shapes = set([np.asarray(sequence).shape[1:] for sequence in data])
         assert len(unique_shapes) == 1, \
             '''All feature shapes in sequences should be equal:
@@ -497,8 +630,14 @@ class TFSequence(TFDataset):
         return np.concatenate(self.data)
 
     @check_initialization
-    def normalize(self, normalization_global):
-        """Normalize data to zero mean and one std."""
+    def normalize(self, norm_global):
+        """Normalize data to zero mean and one std.
+
+        Arguments:
+            norm_global        Indicator of global normalization.
+
+        """
+
         assert self.data is not None, \
             '''Data field should be initialized: self.data = %s''' % self.data
 
@@ -507,7 +646,7 @@ class TFSequence(TFDataset):
 
         result_data = self._normalize_implementation(self.concatenated_data(),
                                                      self.data_shape[1:],
-                                                     normalization_global)
+                                                     norm_global)
 
         # Update dataset with normalized value
         first = 0
@@ -521,6 +660,7 @@ class TFSequence(TFDataset):
     @check_initialization
     def unnormalize(self):
         """Unnormalize dataset to original from zero mean and one std."""
+
         assert self.data is not None, \
             'Data field should be initialized: self.data = %s' % self.data
 
@@ -543,13 +683,14 @@ class TFSequence(TFDataset):
         """Add padding to data.
 
         Arguments:
-            sequences -- input sequences
-            max_sequence_length -- maximal sequence length
-            padding_value -- fill value (optional)
+            sequences                   Input sequences.
+            max_sequence_length         Maximal sequence length.
+            padding_value               Padding fill value.
 
         Return:
-            data_with_padding -- output data with shape [len(sequences), max_sequence_length, ...]
-            lengths -- sequences lengths without padding
+            data_with_padding           Output data with shape
+                                        [len(sequences), max_sequence_length, ...].
+            lengths                     Sequences lengths without padding.
 
         """
         sequences_with_padding = []

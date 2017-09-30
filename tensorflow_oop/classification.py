@@ -2,19 +2,23 @@
 Classification base models.
 """
 
-import sys
-import os
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-include_dir = os.path.join(script_dir, '../')
-if include_dir not in sys.path:
-    sys.path.append(include_dir)
 from tensorflow_oop.neural_network import *
+
 
 class TFClassifier(TFNeuralNetwork):
 
     """
     Classification model with Softmax and Cross entropy loss function.
+
+    Attributes:
+        ...                Parrent class atributes.
+        classes_count      Classification classes count.
+        one_hot_targets    Tensor with one hot representation of targets.
+        softmax            Softmax layer.
+        predictions        Classes indices corresponded to maximum of softmax.
+        top_k_placeholder  Placeholder for parameter k in top prediction metrics.
+        top_k_softmax      Top k values and indices of softmax.
+
     """
 
     __slots__ = TFNeuralNetwork.__slots__ + ['classes_count', 'one_hot_targets',
@@ -33,14 +37,14 @@ class TFClassifier(TFNeuralNetwork):
         """Initialize model.
 
         Arguments:
-            classes_count -- maximum classes count
-            inputs_shape -- shape of inputs layer
-            outputs_shape -- shape of outputs layer
-            inputs_type -- type of inputs layer
-            outputs_type -- type of outputs layer
-            print_self -- indicator of printing model after initialization
-            k_values -- container of k values for top prediction metrics
-            kwargs -- dictionary of keyword arguments
+            classes_count      Classification classes count.
+            inputs_shape       Shape of inputs layer without batch dimension.
+            outputs_shape      Shape of outputs layer without batch dimension.
+            inputs_type        Type of inputs layer.
+            outputs_type       Type of outputs layer.
+            print_self         Indicator of printing model after initialization.
+            k_values           Container of k values for top prediction metrics.
+            kwargs             Dict object of options.
 
         """
         super(TFClassifier, self).initialize(inputs_shape=inputs_shape,
@@ -79,11 +83,11 @@ class TFClassifier(TFNeuralNetwork):
         """Cross entropy for only one correct answer.
 
         Arguments:
-            targets -- tensor of batch with targets
-            outputs -- tensor of batch with outputs
+            targets     Tensor of batch with targets.
+            outputs     Tensor of batch with outputs.
 
         Return:
-            loss -- cross entropy error operation
+            loss        Cross entropy error operation.
 
         """
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=targets, logits=outputs)
@@ -95,11 +99,11 @@ class TFClassifier(TFNeuralNetwork):
         """Get predictions corresponded to maximum probabilities.
 
         Arguments:
-            inputs_values -- batch of inputs
+            inputs_values      Batch of inputs values.
 
         Return:
-            probabilities -- batch of all probabilities
-            indices -- batch of best predictions
+            probabilities      Batch of all probabilities.
+            best_indices       Batch of best prediction indices.
 
         """
         return self.sess.run([self.probabilities, self.predictions], feed_dict={
@@ -112,12 +116,12 @@ class TFClassifier(TFNeuralNetwork):
         """Get predictions corresponded to top k probabilities.
 
         Arguments:
-            inputs_values -- batch of inputs
-            k -- count of top predictions
+            inputs_values      Batch of inputs values.
+            k                  Count of top predictions.
 
         Return:
-            k_probabilities -- batch of top k probabilities
-            k_indices -- batch of top k predictions
+            k_probabilities    Batch of top k probabilities.
+            k_indices          Batch of top k prediction indices.
 
         """
         return self.sess.run(self.top_k_softmax, feed_dict={
@@ -126,10 +130,11 @@ class TFClassifier(TFNeuralNetwork):
         })
 
     def _add_basic_classification_metrics(self, k_values=None):
-        """Add basic accuracy metrics.
+        """Add basic classification metrics as top accuracy.
 
         Arguments:
-            k_values -- container of k values for top prediction metrics, if not passed used only best prediction as top1
+            k_values           Container of k values for top prediction metrics,
+                               if not passed used only best prediction as top 1.
 
         """
         if k_values is not None:

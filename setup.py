@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(name='TensorFlow OOP',
-      version='1.0',
+      version='1.0.1',
       license='BSD',
       description='Object Oriented Programming with TensorFlow',
       author='Ravil Gataullin',

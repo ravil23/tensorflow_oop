@@ -10,12 +10,9 @@ import sys
 import warnings
 from tensorflow.contrib.tensorboard.plugins import projector
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-include_dir = os.path.join(script_dir, '../')
-if include_dir not in sys.path:
-    sys.path.append(include_dir)
 from tensorflow_oop.dataset import *
 from tensorflow_oop.decorators import *
+
 
 # Set logging level.
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -24,6 +21,42 @@ class TFNeuralNetwork(object):
 
     """
     Basic neural network model.
+
+    Public attributes:
+        init               Indicator of initializing model.
+        restored           Indicator of restoring model.
+        log_dir            Path to logging directory.
+        inputs_shape       Shape of inputs layer without batch dimension.
+        targets_shape      Shape of targets layer without batch dimension.
+        outputs_shape      Shape of outputs layer without batch dimension.
+        inputs             Placeholder for batch with inputs.
+        targets            Placeholder for batch with targets.
+        outputs            Tensor of batch with outputs.
+        loss               Operation for minimize in training time.
+        dropout            Placeholder for dropout with default unused value 1.
+        global_step        Tensor of training step.
+        sess               TensorFlow session.
+        options            Dict object of options.
+        metrics            Dict object with collections of metric tensors.
+
+    Private attribute:
+        _update_ops                 Update operations for tf.metrics.
+        _summaries                  Dict object with collections of merged summaries.
+        _summary_writer             Summary writer object.
+        _projector_config           Projector configuration object.
+        _saver                      Saver object.
+        _best_val_checkpoint        Path to best validation checkpoint.
+        _best_val_result            Maximal evaluation result on validation set.
+        _best_val_iteration         Number of iteration with best result on validation set.
+        _best_val_key               Key of evaluation metric for calculate best result.
+        _fit_checkpoint             Path to fitting checkpoint.
+        _vis_checkpoint             Path to visualisation checkpoint.
+        _iteration                  Numeric current training iteration value.
+        _iter_count                 Numeric total training iteration count.
+        _epoch                      Numeric current training epoch value.
+        _epoch_count                Numeric total training epoch count.
+        _local_variables_initializer Local variables initializer.
+
     """
 
     __slots__ = ['init', 'restored', 'log_dir',
@@ -41,9 +74,18 @@ class TFNeuralNetwork(object):
                  '_local_variables_initializer']
 
     def __init__(self, log_dir, clear, reset_graph=True):
+        """Constructor.
+
+        Arguments:
+            log_dir            Path to logging directory.
+            clear              Indicator of clearing logging directory.
+            reset_graph        Indicator of resetting default graph.
+
+        """
+
+        # Default initialization
         for attr in self.__slots__:
             setattr(self, attr, None)
-        self.log_dir = log_dir
         self.init = False
         self.restored = False
         self.options = {}
@@ -65,6 +107,9 @@ class TFNeuralNetwork(object):
                         'eval_train': [],
                         'eval_validation': [],
                         'eval_test': []}
+
+        # Save logging directory
+        self.log_dir = log_dir
 
         # Checkpoint paths
         self._fit_checkpoint = os.path.join(self.log_dir, 'fit-checkpoint')
@@ -93,16 +138,17 @@ class TFNeuralNetwork(object):
         """Initialize model.
 
         Arguments:
-            inputs_shape -- shape of inputs layer
-            targets_shape -- shape of targets layer
-            outputs_shape -- shape of outputs layer
-            inputs_type -- type of inputs layer
-            targets_type -- type of targets layer
-            outputs_type -- type of outputs layer
-            print_self -- indicator of printing model after initialization
-            kwargs -- dictionary of keyword arguments
+            inputs_shape       Shape of inputs layer without batch dimension.
+            targets_shape      Shape of targets layer without batch dimension.
+            outputs_shape      Shape of outputs layer without batch dimension.
+            inputs_type        Type of inputs layer.
+            targets_type       Type of targets layer.
+            outputs_type       Type of outputs layer.
+            print_self         Indicator of printing model after initialization.
+            kwargs             Dict object of options.
 
         """
+
         print('Start initializing model...')
 
         # Create TensorBoard logging directory
@@ -115,8 +161,9 @@ class TFNeuralNetwork(object):
         self.sess = tf.Session(config=config)
 
         # Options
-        for key in kwargs:
-            self.add_option_to_graph(key, kwargs[key])
+        self.options = kwargs
+        for key in self.options:
+            self.add_option_to_graph(key, self.options[key])
 
         # Input, Target and Output layer shapes
         self.inputs_shape = list(inputs_shape)
@@ -170,11 +217,11 @@ class TFNeuralNetwork(object):
         """Add option to graph.
 
         Arguments:
-            name -- name of tensor
-            value -- data value for tensor
+            name        Name of adding variable.
+            value       Data value for tensor.
 
         Return:
-            option -- tensorflow variable
+            option      TensorFlow variable if successfully added.
 
         """
         option = None
@@ -183,15 +230,14 @@ class TFNeuralNetwork(object):
             self.sess.run(tf.variables_initializer([option]))
         except:
             warnings.warn('''Option '%s' can't be saved to graph as variable.''' % name)
-        self.options[name] = value
         return option
 
     def initialize_variables(self, init_global, init_local):
         """Initialize uninitialized global, all local variables and create new saver.
 
         Arguments:
-            init_global -- boolean indicator of initialization global variables
-            init_local -- boolean indicator of initialization local variables
+            init_global        Boolean indicator of initialization uninitialized global variables.
+            init_local         Boolean indicator of initialization all local variables.
 
         """
         if init_global:
@@ -214,14 +260,14 @@ class TFNeuralNetwork(object):
         """Add logging and summarizing metric.
 
         Arguments:
-            metric -- tensorflow operation
-            collections -- list of strings from ['batch_train',
-                                                 'batch_validation',
-                                                 'log_train',
-                                                 'eval_train',
-                                                 'eval_validation',
-                                                 'eval_test']
-            key -- string key
+            metric      TensorFlow operation or pair (tensor, update_op) as from tf.metrics.
+            collections List of strings from ['batch_train',
+                                              'batch_validation',
+                                              'log_train',
+                                              'eval_train',
+                                              'eval_validation',
+                                              'eval_test'].
+            key         Key in string format.
 
         """
 
@@ -280,14 +326,16 @@ class TFNeuralNetwork(object):
         """Get training operation.
 
         Arguments:
-            optimizer -- tensorflow optimizer object
-            learning_rate -- initial gradient descent step
-            max_gradient_norm -- maximal gradient norm for clipping
+            optimizer          TensorFlow optimizer class.
+            learning_rate      Initial gradient descent step.
+            max_gradient_norm  Maximal gradient norm for clipping.
 
         Return:
-            trin_op -- training operation
+            trin_op            Training operation.
 
         """
+
+        # Create optimizer operation
         optimizer_op = optimizer(learning_rate)
 
         # Calculate gradients
@@ -358,20 +406,21 @@ class TFNeuralNetwork(object):
         """Train model.
 
         Arguments:
-            train_set -- dataset for training
-            val_set -- dataset for validation
-            epoch_count -- training epochs count
-            iter_count -- training iterations count
-            optimizer -- tensorflow optimizer object
-            learning_rate -- initial gradient descent step numeric or tensor
-            max_gradient_norm -- maximal gradient norm for clipping
-            summarizing_period -- iterations count between summarizing
-            logging_period -- iterations count between logging to stdout
-            checkpoint_period -- iterations count between saving checkpoint
-            evaluation_period -- iterations count between evaluation
-            best_val_key -- metric key for saving best validation checkpoint
+            train_set          Dataset for training.
+            val_set            Dataset for validation
+            epoch_count        Training epochs count.
+            iter_count         Training iterations count.
+            optimizer          TensorFlow optimizer object.
+            learning_rate      Initial gradient descent step numeric or tensor.
+            max_gradient_norm  Maximal gradient norm for clipping.
+            summarizing_period Iterations count between summarizing.
+            logging_period     Iterations count between logging to stdout.
+            checkpoint_period  Iterations count between saving checkpoint.
+            evaluation_period  Iterations count between evaluation.
+            best_val_key       Metric key for saving best validation checkpoint.
 
         """
+
         print('Start training...')
         start_fit_time = time.time()
 
@@ -466,7 +515,10 @@ class TFNeuralNetwork(object):
         """Get filled feed dictionary for batch.
 
         Arguments:
-            batch -- batch of inputs
+            batch       Batch of inputs.
+
+        Return:
+            feed_dict   Dict object with filled placeholders.
 
         """
         feed_dict = {
@@ -481,12 +533,12 @@ class TFNeuralNetwork(object):
         """Produce model on batch and return list of output tensors values.
 
         Arguments:
-            dataset -- TFDataset object
-            batch -- TFBatch object
-            output_tensors -- container of output tensors
+            dataset            Dataset object.
+            batch              Batch from passed dataset.
+            output_tensors     Container of output tensors.
 
         Return:
-            output_values -- list of output tensors values
+            output_values      Container of output tensors values.
 
         """
 
@@ -504,10 +556,10 @@ class TFNeuralNetwork(object):
         """Forward propagation.
 
         Arguments:
-            inputs_values -- batch of inputs
+            inputs_values      Batch of array like inputs values.
 
         Return:
-            outputs_values -- batch of outputs
+            outputs_values     Batch of array like outputs.
 
         """
         return self.sess.run(self.outputs, feed_dict={
@@ -520,13 +572,13 @@ class TFNeuralNetwork(object):
         """Evaluate model.
 
         Arguments:
-            dataset -- TFDataset object
-            collection -- string value from ['eval_train',
-                                             'eval_validation',
-                                             'eval_test']
+            dataset            Dataset object.
+            collection         String value from ['eval_train',
+                                                  'eval_validation',
+                                                  'eval_test'].
 
         Return:
-            metrics -- dictionary
+            metrics            Dict object of metrics values.
 
         """
 
@@ -563,13 +615,13 @@ class TFNeuralNetwork(object):
         """Evaluate model.
 
         Arguments:
-            dataset -- TFDataset object
-            collection -- string value from ['eval_train',
-                                             'eval_validation',
-                                             'eval_test']
+            dataset            Dataset object.
+            collection         String value from ['eval_train',
+                                                  'eval_validation',
+                                                  'eval_test'].
 
         Return:
-            metrics -- dictionary
+            metrics            Dict object of metrics values.
 
         """
 
@@ -593,8 +645,8 @@ class TFNeuralNetwork(object):
         """Save checkpoint.
 
         Arguments:
-            filename -- path to saving
-            global_step -- optional suffix adding to path (default None)
+            filename           Path to saving.
+            global_step        Optional suffix adding to path.
 
         """
         saved_filename = self._saver.save(self.sess, filename,
@@ -606,7 +658,7 @@ class TFNeuralNetwork(object):
         """Save checkpoint with best result on validation set.
 
         Arguments:
-            result -- new best validation result
+            result      New best validation result.
 
         """
         self._best_val_result = result
@@ -618,7 +670,7 @@ class TFNeuralNetwork(object):
         """Restore checkpoint only if model initialized.
         
         Arguments:
-            filename -- path to checkpoint
+            filename    Path to checkpoint.
         
         """
         if filename is None:
@@ -639,10 +691,10 @@ class TFNeuralNetwork(object):
         """Actualize iteration and epoch count.
 
         Arguments:
-            iter_count -- iteration count (None if unknown)
-            epoch_count -- epoch count (None if unknown)
-            dataset_size -- length of dataset
-            batch_size -- length of batch
+            iter_count         Iteration count (pass None if unknown).
+            epoch_count        Epoch count (pass None if unknown).
+            dataset_size       Length of dataset.
+            batch_size         Length of batch.
 
         """
         if epoch_count is not None:
@@ -695,10 +747,10 @@ class TFNeuralNetwork(object):
         """Get tensor basename without scope and identification postfix.
 
         Arguments:
-            tensor -- graph node with name attribute
+            tensor      Some tensor wit name.
 
         Return:
-            basename -- string
+            basename    Basename string.
 
         """
         name = tensor.name
@@ -713,10 +765,10 @@ class TFNeuralNetwork(object):
         """Run one training iteration.
 
         Arguments:
-            train_set -- TFDataset object
-            train_op -- training operation
-            summarizing_flag -- boolean indicator of summarizing
-            logging_flag -- boolean indicator of logging
+            train_set          Training dataset object.
+            train_op           Taining operation.
+            summarizing_flag   Boolean indicator of summarizing.
+            logging_flag       Boolean indicator of logging.
 
         """
 
@@ -765,8 +817,8 @@ class TFNeuralNetwork(object):
         """Run one training iteration.
 
         Arguments:
-            val_set -- TFDataset object
-            summarizing_flag -- boolean indicator of summarizing
+            val_set            Validation dataset object.
+            summarizing_flag   Boolean indicator of summarizing.
 
         """
 
@@ -786,10 +838,10 @@ class TFNeuralNetwork(object):
         """Model inference.
 
         Arguments:
-            inputs -- tensor of batch with inputs
+            inputs      Tensor of batch with inputs.
 
         Return:
-            outputs -- tensor of outputs layer
+            outputs     Tensor of outputs layer.
 
         """
         raise Exception('Inference function should be overwritten!')
@@ -799,17 +851,18 @@ class TFNeuralNetwork(object):
         """Loss function.
 
         Arguments:
-            targets -- tensor of batch with targets
-            outputs -- tensor of batch with outputs
+            targets     Tensor of batch with targets.
+            outputs     Tensor of batch with outputs.
 
         Return:
-            loss -- tensorflow operation for minimization
+            loss        TensorFlow operation for minimization.
 
         """
         raise Exception('Loss function should be overwritten!')
         return loss
 
     def __str__(self):
+        """String formatting."""
         string = 'TFNeuralNetwork object:\n'
         for attr in self.__slots__:
             if hasattr(self, attr) and attr[0] != '_':

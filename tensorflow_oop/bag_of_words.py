@@ -11,38 +11,49 @@ class TFBagOfWords(object):
 
     """
     Bag of words model.
+
+    Attributes:
+        size               Dictionary length.
+        non_chars          String with chars for excluding.
+        lower_case         Indicator of case insensitive mode.
+        digit_as_zero      Indicator of converting all digits to zero.
+        min_count          Filter minimum words count for adding to dictionary.
+        max_count          Filter maximum words count for adding to dictionary.
+        words_counter      Counter object of all words in texts.
+        dictionary         Dict object of correct words in texts.
     """
 
     __slots__ = ['size',
-                 'non_chars', 'lower_caise', 'digit_zero',
+                 'non_chars', 'lower_case', 'digit_as_zero',
                  'min_count', 'max_count',
                  'words_counter', 'dictionary']
 
     def __init__(self,
                  texts,
-                 non_chars='/.,!?()_-";:*=&|%<>@\'\t\n\r',
-                 lower_caise=True,
-                 digit_zero=True,
+                 non_chars=None,
+                 lower_case=True,
+                 digit_as_zero=True,
                  min_count=1,
                  max_count=np.inf):
-        """Initialize Bag of words model.
+        """Constructor.
 
         Arguments:
-            texts -- list of texts for statistic
-            non_chars -- symbols for excluding
-            lower_caise -- mode with lower symbols
-            digit_zero -- convert all digits to zero
-            min_count -- filter minimum words count for adding to dictionary
-            max_count -- filter maximum words count for adding to dictionary
-
-        Return:
-            words -- list
+            texts              List of texts for building dictionary.
+            non_chars          String with chars for excluding.
+            lower_case         Indicator of case insensitive mode.
+            digit_as_zero      Indicator of converting all digits to zero.
+            min_count          Filter minimum words count for adding to dictionary.
+            max_count          Filter maximum words count for adding to dictionary.
 
         """
+
         # Save properties
-        self.non_chars = non_chars
-        self.lower_caise = lower_caise
-        self.digit_zero = digit_zero
+        if non_chars is not None:
+            self.non_chars = non_chars
+        else:
+            self.non_chars = '/.,!?()_-";:*=&|%<>@\'\t\n\r'
+        self.lower_case = lower_case
+        self.digit_as_zero = digit_as_zero
         self.min_count = min_count
         self.max_count = max_count
 
@@ -61,13 +72,13 @@ class TFBagOfWords(object):
         """Get list of standart words from text.
 
         Arguments:
-            text -- input value
+            text        Text in string format.
 
         Return:
-            words -- list
+            words       List of extracted words.
 
         """
-        words = self._preprocessing(text).split(' ')
+        words = self.preprocessing(text).split(' ')
         if '' in words:
             words.remove('')
         return words
@@ -76,13 +87,14 @@ class TFBagOfWords(object):
         """Calculate vector by text.
 
         Arguments:
-            text -- conversation text
-            binary -- use rational or only [0, 1]
+            text        Conversation text.
+            binary      Indicator of using only {0, 1} instead rational from [0, 1].
 
         Return:
-            vector -- array
+            vector      Numeric representation vector.
 
         """
+
         # Calculate statistic
         words = self.list_of_words(text)
         vector = np.zeros(self.size)
@@ -105,10 +117,34 @@ class TFBagOfWords(object):
             vector /= valid_count
         return vector
 
+    def preprocessing(self, old_text):
+        """Standartize text to one format.
+
+        Arguments:
+            old_text    Text to preprocessing in string format.
+
+        Return:
+            new_text    Processed text.
+
+        """
+        if self.lower_case:
+            new_text = old_text.lower()
+        for non_char in self.non_chars:
+            new_text = new_text.replace(non_char, ' ')
+        if self.digit_as_zero:
+            for i in range(1, 10):
+                new_text = new_text.replace(str(i), '0')
+        while new_text.find('  ') >= 0:
+            new_text = new_text.replace('  ', ' ')
+        new_text = new_text.strip()
+        return new_text
+
     def __len__(self):
+        """Unique words count in dictionary."""
         return self.size
 
     def __str__(self):
+        """String formatting."""
         string = 'TFBagOfWords object:\n'
         for attr in self.__slots__:
             if attr != 'words_counter' and attr != 'dictionary':
@@ -126,25 +162,3 @@ class TFBagOfWords(object):
             '\n'.join([str(elem) for elem in sorted_dictionary[:10]]),
             '\n'.join([str(elem) for elem in sorted_dictionary[-10:]]))
         return string[:-1]
-
-    def _preprocessing(self, old_text):
-        """Standartize text to one format.
-
-        Arguments:
-            old_text -- input value
-
-        Return:
-            new_text -- string
-
-        """
-        if self.lower_caise:
-            new_text = old_text.lower()
-        for non_char in self.non_chars:
-            new_text = new_text.replace(non_char, ' ')
-        if self.digit_zero:
-            for i in range(1, 10):
-                new_text = new_text.replace(str(i), '0')
-        while new_text.find('  ') >= 0:
-            new_text = new_text.replace('  ', ' ')
-        new_text = new_text.strip()
-        return new_text

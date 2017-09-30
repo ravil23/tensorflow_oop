@@ -3,18 +3,11 @@ Decorators.
 """
 
 import tensorflow as tf
-import os
-import sys
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-include_dir = os.path.join(script_dir, '../')
-if include_dir not in sys.path:
-    sys.path.append(include_dir)
 from tensorflow_oop.dataset import *
 
 
 def check_inputs_values(function):
-    """Decorator for check corresponding inputs values."""
+    """Decorator for check inputs values."""
     def wrapper(self, inputs_values, *args, **kwargs):
         new_shape = np.asarray(np.asarray(inputs_values).shape[1:])
         cur_shape = np.asarray(self.inputs_shape)

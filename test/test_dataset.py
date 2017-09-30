@@ -65,9 +65,9 @@ class TestTFDataset(unittest.TestCase):
         self.dataset3.normalize(True)
         self.dataset3.initialize(None, self.labels)
         self.assertEqual(self.dataset3.normalized, None)
-        self.assertEqual(self.dataset3.normalization_global, None)
-        self.assertEqual(self.dataset3.normalization_mean, None)
-        self.assertEqual(self.dataset3.normalization_std, None)
+        self.assertEqual(self.dataset3.norm_global, None)
+        self.assertEqual(self.dataset3.norm_mean, None)
+        self.assertEqual(self.dataset3.norm_std, None)
 
     def test_data_labels_initialize(self):
         self.empty.initialize(self.data, self.labels)
@@ -295,18 +295,18 @@ class TestTFDataset(unittest.TestCase):
             self.dataset2.normalize(True)
         self.dataset1.normalize(True)
         self.assertTrue(self.dataset1.normalized)
-        self.assertTrue(self.dataset1.normalization_global)
-        self.assertEqual(self.dataset1.normalization_mean, np.mean(self.data))
-        self.assertEqual(self.dataset1.normalization_std, np.std(self.data))
+        self.assertTrue(self.dataset1.norm_global)
+        self.assertEqual(self.dataset1.norm_mean, np.mean(self.data))
+        self.assertEqual(self.dataset1.norm_std, np.std(self.data))
         
         # Test with mask
         dataset = TFDataset(data=[[[1,2],[3,4]],[[5,6],[7,8]],[[9,10],[11,12]]])
         dataset.normalize(False)
         self.assertTrue(dataset.normalized)
-        self.assertFalse(dataset.normalization_global)
-        self.assertTrue(np.all(dataset.normalization_mean == np.asarray([[np.mean([1,5,9]), np.mean([2,6,10])],
+        self.assertFalse(dataset.norm_global)
+        self.assertTrue(np.all(dataset.norm_mean == np.asarray([[np.mean([1,5,9]), np.mean([2,6,10])],
                                                                          [np.mean([3,7,11]), np.mean([4,8,12])]])))
-        self.assertTrue(np.all(dataset.normalization_std  == np.asarray([[np.std([1,5,9]), np.std([2,6,10])],
+        self.assertTrue(np.all(dataset.norm_std  == np.asarray([[np.std([1,5,9]), np.std([2,6,10])],
                                                                          [np.std([3,7,11]), np.std([4,8,12])]])))
         
     def test_unnormalize(self):

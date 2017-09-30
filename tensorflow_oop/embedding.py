@@ -2,13 +2,6 @@
 Embedding base models.
 """
 
-import sys
-import os
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-include_dir = os.path.join(script_dir, '../')
-if include_dir not in sys.path:
-    sys.path.append(include_dir)
 from tensorflow_oop.neural_network import *
 from tensorflow_oop.decorators import *
 
@@ -17,6 +10,11 @@ class TFTripletset(TFDataset):
 
     """
     Triplet generation dataset.
+
+    Attributes:
+        ...                         Parrent class atributes.
+        batch_positives_count       Positive elements count per batch.
+        batch_negatives_count       Negative elements count per batch.
     """
 
     __slots__ = TFDataset.__slots__ + ['batch_positives_count',
@@ -24,12 +22,24 @@ class TFTripletset(TFDataset):
 
     @check_triplets_data_labels
     def initialize(self, data, labels):
-        """Set data and labels."""
+        """Set data and labels.
+
+        Arguments:
+            data        Array like object for store as data attribute.
+            labels      Array like object for store as labels attribute.
+
+        """
         super(TFTripletset, self).initialize(data=data, labels=labels)
 
     @check_initialization
     def set_batch_size(self, batch_size, batch_positives_count):
-        """Set batch size and positives count per batch."""
+        """Set batch size and positives count per batch.
+
+        Arguments:
+            batch_size                Elements count per batch.
+            batch_positives_count     Positive elements count per batch.
+
+        """
         assert batch_positives_count > 0, \
             '''Positives count in batch should be greater than zero:
             batch_positives_count = %s''' % batch_positives_count
@@ -79,7 +89,13 @@ class TFEmbedding(TFNeuralNetwork):
 
     @staticmethod
     def squared_distance(first_points, second_points):
-        """Pairwise squared distances between 2 sets of points."""
+        """Pairwise squared distances between 2 sets of points.
+
+        Arguments:
+            first_points       First collection of 1D tensors.
+            second_points      Second collection of 1D tensors.
+
+        """
         diff = tf.squared_difference(tf.expand_dims(first_points, 1),
                                      second_points)
         return tf.reduce_sum(diff, axis=2)
@@ -89,15 +105,17 @@ class TFEmbedding(TFNeuralNetwork):
                    outputs_shape,
                    inputs_type=tf.float32,
                    outputs_type=tf.float32,
+                   print_self=True,
                    **kwargs):
         """Initialize model.
 
         Arguments:
-            inputs_shape -- shape of inputs layer
-            outputs_shape -- shape of outputs layer
-            inputs_type -- type of inputs layer
-            outputs_type -- type of outputs layer
-            kwargs -- dictionary of keyword arguments
+            inputs_shape       Shape of inputs layer without batch dimension.
+            outputs_shape      Shape of outputs layer without batch dimension.
+            inputs_type        Type of inputs layer.
+            outputs_type       Type of outputs layer.
+            print_self         Indicator of printing model after initialization.
+            kwargs             Dict object of options.
 
         """
         super(TFEmbedding, self).initialize(inputs_shape=inputs_shape,
@@ -106,6 +124,7 @@ class TFEmbedding(TFNeuralNetwork):
                                             inputs_type=inputs_type,
                                             targets_type=tf.int32,
                                             outputs_type=outputs_type,
+                                            print_self=False,
                                             **kwargs)
 
         def centroid_dist(embedding_pos, embedding_neg):
@@ -164,15 +183,18 @@ class TFEmbedding(TFNeuralNetwork):
         self.add_metric(tf.identity(max_centroid_fscore, 'max_centroid_fscore'),
                         collections=['batch_train', 'batch_validation', 'log_train'])
 
+        if print_self:
+            print('%s\n' % self)
+
     def loss_function(self, targets, outputs):
         """Compute the triplet loss by mini-batch of triplet embeddings.
 
         Arguments:
-            targets -- tensor of batch with targets
-            outputs -- tensor of batch with outputs
+            targets     Tensor of batch with targets.
+            outputs     Tensor of batch with outputs.
 
         Return:
-            loss -- triplet loss operation
+            loss        Triplet loss operation.
 
         """
         assert 'margin' in self.options, \
@@ -247,9 +269,9 @@ class TFEmbedding(TFNeuralNetwork):
         """Visualize embeddings in TensorBoard.
 
         Arguments:
-            embeddings -- embeddings values
-            var_name -- string key
-            labels -- optional embeddings labels
+            embeddings  Collection of embeddings.
+            var_name    Name of variable in string format.
+            labels      Optional embeddings labels with the same size.
 
         """
         if labels is not None:

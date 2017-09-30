@@ -4,99 +4,109 @@ Helpful functions.
 
 import tensorflow as tf
 
-def devices_list():
-    """List of available devices.
 
-    Return:
-        result -- list of pairs (name, physical_device_desc)
+class TFUtils(object):
 
     """
-    from tensorflow.python.client import device_lib
-    local_device_protos = device_lib.list_local_devices()
-    return [(x.name, x.physical_device_desc) for x in local_device_protos]
-
-
-def checkpoints_list(log_dir):
-    """List of all model checkpoint paths.
-
-    Arguments:
-        log_dir -- path to logging directory
-
-    Return:
-        result -- list of checkpoint paths
-
+    Class for grouping static utility functions.
     """
-    checkpoint_state = tf.train.get_checkpoint_state(log_dir)
-    if checkpoint_state is not None:
-        return [checkpoint for checkpoint in checkpoint_state.all_model_checkpoint_paths]
-    else:
-        return []
 
+    @static_method
+    def devices_list():
+        """List of available devices.
 
-def nodes_list(graph=None):
-    """List of graph nodes.
+        Return:
+            result      List of device information pairs (name, physical_device_desc).
 
-    Arguments:
-        graph -- tensorflow graph (optional)
+        """
+        from tensorflow.python.client import device_lib
+        local_device_protos = device_lib.list_local_devices()
+        return [(x.name, x.physical_device_desc) for x in local_device_protos]
 
-    Return:
-        result -- list of node names
+    @static_method
+    def checkpoints_list(log_dir):
+        """List of all model checkpoint paths.
 
-    """
-    if graph is None:
-        graph = tf.get_default_graph()
-    return [node.name for node in graph.as_graph_def().node]
+        Arguments:
+            log_dir     Path to logging directory.
 
+        Return:
+            result      List of checkpoint paths.
 
-def freeze_session(filename, sess,
-                   output_node_names,
-                   variable_names_whitelist=None,
-                   variable_names_blacklist=None):
-    """Save session graph as binary file.
+        """
+        checkpoint_state = tf.train.get_checkpoint_state(log_dir)
+        if checkpoint_state is not None:
+            return [checkpoint for checkpoint in checkpoint_state.all_model_checkpoint_paths]
+        else:
+            return []
 
-    Arguments:
-        filename -- output path
-        sess -- session with variables and graph
-        output_node_names -- list of name strings for the result nodes of the graph
-        variable_names_whitelist -- the set of variable names to convert
-                                    (by default, all variables are converted)
-        variable_names_blacklist -- the set of variable names to omit converting to constants
+    @static_method
+    def nodes_list(graph=None):
+        """List of graph nodes.
 
-    """
-    from tensorflow import graph_util
-    input_graph_def = sess.graph.as_graph_def()
-    output_graph_def = graph_util.convert_variables_to_constants(
-        sess,
-        input_graph_def,
-        output_node_names,
-        variable_names_whitelist=variable_names_whitelist,
-        variable_names_blacklist=variable_names_blacklist)
-    with tf.gfile.GFile(filename, "wb") as f:
-        f.write(output_graph_def.SerializeToString())
+        Arguments:
+            graph       TensorFlow graph (optional).
 
+        Return:
+            result      List of node names.
 
-def freeze_checkpoint(filename, checkpoint_path,
-                      output_node_names,
-                      variable_names_whitelist=None,
-                      variable_names_blacklist=None):
-    """Save session graph as binary file.
+        """
+        if graph is None:
+            graph = tf.get_default_graph()
+        return [node.name for node in graph.as_graph_def().node]
 
-    Arguments:
-        filename -- output path
-        checkpoint_path -- path to checkpoint file
-        output_node_names -- list of name strings for the result nodes of the graph
-        variable_names_whitelist -- the set of variable names to convert
-                                    (by default, all variables are converted)
-        variable_names_blacklist -- the set of variable names to omit converting to constants
+    @static_method
+    def freeze_session(filename, sess, output_node_names, whitelist=None, blacklist=None):
+        """Save session graph as binary file.
 
-    """
-    # Import the meta graph and retrieve a Saver
-    saver = tf.train.import_meta_graph(checkpoint_path + '.meta', clear_devices=True)
+        Arguments:
+            filename           Output path.
+            sess               Session with variables and graph.
+            output_node_names  List of names for the result nodes of the graph.
+            whitelist          The set of variable names to convert,
+                               by default, all variables are converted.
+            blacklist          The set of variable names to omit converting to constants.
 
-    # Start session to restore the graph weights and freeze variables to constants
-    with tf.Session() as sess:
-        saver.restore(sess, checkpoint_path)
-        freeze_session(filename, sess,
-                       output_node_names,
-                       variable_names_whitelist=variable_names_whitelist,
-                       variable_names_blacklist=variable_names_blacklist)
+        """
+
+        # Convert variables to constant
+        from tensorflow import graph_util
+        input_graph_def = sess.graph.as_graph_def()
+        output_graph_def = graph_util.convert_variables_to_constants(
+            sess,
+            input_graph_def,
+            output_node_names,
+            variable_names_whitelist=whitelist,
+            variable_names_blacklist=blacklist)
+
+        # Write to file
+        with tf.gfile.GFile(filename, "wb") as f:
+            f.write(output_graph_def.SerializeToString())
+
+    @static_method
+    def freeze_checkpoint(filename, checkpoint_path,
+                          output_node_names,
+                          whitelist=None,
+                          blacklist=None):
+        """Save session graph as binary file.
+
+        Arguments:
+            filename           Output path.
+            checkpoint_path    Path to checkpoint file.
+            output_node_names  List of names for the result nodes of the graph.
+            whitelist          The set of variable names to convert,
+                               by default, all variables are converted.
+            blacklist          The set of variable names to omit converting to constants.
+
+        """
+
+        # Import the meta graph and retrieve a Saver
+        saver = tf.train.import_meta_graph(checkpoint_path + '.meta', clear_devices=True)
+
+        # Start session to restore the graph weights and freeze variables to constants
+        with tf.Session() as sess:
+            saver.restore(sess, checkpoint_path)
+            freeze_session(filename, sess,
+                           output_node_names,
+                           variable_names_whitelist=variable_names_whitelist,
+                           variable_names_blacklist=variable_names_blacklist)
