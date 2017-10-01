@@ -15,7 +15,7 @@ docker build -t tensorflow_oop .
 ```
 
 ### Run container
-Replace <IMAGE_NAME> with "thedatascience/tensorflow_oop:1.0.1" if you pull from DockerHub or "tensorflow_oop" if you build local image:
+Replace `<IMAGE_NAME>` with `thedatascience/tensorflow_oop:1.0.1` if you pull from DockerHub or `tensorflow_oop` if you build local image:
 ```
 docker run -p 6006:6006 -it --rm <IMAGE_NAME>
 ```
