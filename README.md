@@ -37,7 +37,7 @@ import tensorflow_oop as tfoop
 ### Example
 Usage examples for MNIST located in folder 'example'. Run with '--help' option for more information.
 ```
-python example/*.py
+python example/<EXAMPLE_NAME>.py
 ```
 
 ## Test
