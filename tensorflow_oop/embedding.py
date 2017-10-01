@@ -327,7 +327,3 @@ class TFEmbedding(TFNeuralNetwork):
                         is_first = False
                     else:
                         f.write('\n' + str(label))
-
-        # Print status info
-        print('''For watching in TensorBoard run command:
-              tensorboard --logdir "%s"''' % self.log_dir)

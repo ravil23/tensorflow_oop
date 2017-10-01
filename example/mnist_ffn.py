@@ -77,6 +77,10 @@ def run(args):
     if test_set is not None:
         model.evaluate_and_log(test_set, collection='eval_test')
 
+    # Print status info
+    print('''For watching in TensorBoard run command:
+          tensorboard --logdir "%s"''' % args.log_dir)
+
     if args.show:
         print('Showing test set...')
         import cv2

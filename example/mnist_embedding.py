@@ -79,6 +79,10 @@ def run(args):
     model.visualize(vis_val_embeddings, 'val_set', labels=vis_val_labels)
     model.visualize(vis_test_embeddings, 'test_set', labels=vis_test_labels)
 
+    # Print status info
+    print('''For watching in TensorBoard run command:
+          tensorboard --logdir "%s"''' % args.log_dir)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='MNIST embedding with Triplet Loss.',

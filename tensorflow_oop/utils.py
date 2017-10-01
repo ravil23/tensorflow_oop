@@ -11,7 +11,7 @@ class TFUtils(object):
     Class for grouping static utility functions.
     """
 
-    @static_method
+    @staticmethod
     def devices_list():
         """List of available devices.
 
@@ -23,7 +23,7 @@ class TFUtils(object):
         local_device_protos = device_lib.list_local_devices()
         return [(x.name, x.physical_device_desc) for x in local_device_protos]
 
-    @static_method
+    @staticmethod
     def checkpoints_list(log_dir):
         """List of all model checkpoint paths.
 
@@ -40,7 +40,7 @@ class TFUtils(object):
         else:
             return []
 
-    @static_method
+    @staticmethod
     def nodes_list(graph=None):
         """List of graph nodes.
 
@@ -55,7 +55,7 @@ class TFUtils(object):
             graph = tf.get_default_graph()
         return [node.name for node in graph.as_graph_def().node]
 
-    @static_method
+    @staticmethod
     def freeze_session(filename, sess, output_node_names, whitelist=None, blacklist=None):
         """Save session graph as binary file.
 
@@ -83,7 +83,7 @@ class TFUtils(object):
         with tf.gfile.GFile(filename, "wb") as f:
             f.write(output_graph_def.SerializeToString())
 
-    @static_method
+    @staticmethod
     def freeze_checkpoint(filename, checkpoint_path,
                           output_node_names,
                           whitelist=None,
