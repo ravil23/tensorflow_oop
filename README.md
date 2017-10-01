@@ -19,7 +19,7 @@ Library installation command:
 python setup.py install
 ```
 
-## Uninstall
+### Uninstall
 Library uninstallation commands:
 ```
 python setup.py install --record files.txt
