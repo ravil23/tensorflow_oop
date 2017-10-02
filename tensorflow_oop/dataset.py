@@ -4,6 +4,7 @@ Dataset and batch base classes.
 
 import numpy as np
 import pickle
+import warnings
 
 
 def check_initialization(function):
@@ -137,6 +138,10 @@ class TFDataset(object):
         else:
             self._reset_labels()
 
+        if self.batch_size > self.size:
+            self.batch_size = self.size
+            warnings.warn('''Batch size automatically decreased to dataset size:
+                             self.batch_size = %s''' % self.batch_size)
         self.init = True
 
     def _set_data(self, data):
