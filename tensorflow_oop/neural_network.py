@@ -49,6 +49,7 @@ class TFNeuralNetwork(object):
         _best_val_result            Maximal evaluation result on validation set.
         _best_val_iteration         Number of iteration with best result on validation set.
         _best_val_key               Key of evaluation metric for calculate best result.
+        _best_val_maximize          Indicator of maximization (True) or minimization (False) validation result.
         _fit_checkpoint             Path to fitting checkpoint.
         _vis_checkpoint             Path to visualisation checkpoint.
         _iteration                  Numeric current training iteration value.
@@ -68,7 +69,7 @@ class TFNeuralNetwork(object):
                  'options', 'metrics', '_update_ops', '_summaries',
                  '_summary_writer', '_projector_config', '_saver',
                  '_best_val_checkpoint', '_best_val_result',
-                 '_best_val_iteration', '_best_val_key',
+                 '_best_val_iteration', '_best_val_key', '_best_val_maximize',
                  '_fit_checkpoint', '_vis_checkpoint',
                  '_iteration', '_iter_count',
                  '_epoch', '_epoch_count',
@@ -404,7 +405,8 @@ class TFNeuralNetwork(object):
             logging_period=100,
             checkpoint_period=10000,
             evaluation_period=10000,
-            best_val_key=None):
+            best_val_key=None,
+            best_val_maximize=True):
         """Train model.
 
         Arguments:
@@ -420,6 +422,7 @@ class TFNeuralNetwork(object):
             checkpoint_period  Iterations count between saving checkpoint.
             evaluation_period  Iterations count between evaluation.
             best_val_key       Metric key for saving best validation checkpoint.
+            best_val_maximize  Indicator of maximization (True) or minimization (False) validation result.
 
         """
 
@@ -462,6 +465,7 @@ class TFNeuralNetwork(object):
         if val_set is not None and best_val_key is not None:
             print('Initial evaluation...')
             self._best_val_key = best_val_key
+            self._best_val_maximize = best_val_maximize
             self.evaluate_and_log(val_set, 'eval_validation')
 
         # Initial logging period time
@@ -509,6 +513,7 @@ class TFNeuralNetwork(object):
             print('Report by best result on validation set:')
             print('%20s : %s' % ('best_val_key', self._best_val_key))
             print('%20s : %s' % ('best_val_result', self._best_val_result))
+            print('%20s : %s' % ('best_val_maximize', self._best_val_maximize))
             print('%20s : %s' % ('best_val_iteration', self._best_val_iteration))
             print('%20s : %s\n' % ('best_val_checkpoint', self._best_val_checkpoint))
 
@@ -605,7 +610,9 @@ class TFNeuralNetwork(object):
         # Save best result on validation set if necessary
         if self._best_val_key is not None and collection == 'eval_validation':
             result = metrics[self._best_val_key]
-            if self._best_val_result is None or result > self._best_val_result:
+            if self._best_val_result is None or \
+               (self._best_val_maximize and result > self._best_val_result) or \
+               (not self._best_val_maximize and result < self._best_val_result):
                 print('Saving checkpoint with best result on validation set...')
                 self.save_best_on_validation(result)
 
