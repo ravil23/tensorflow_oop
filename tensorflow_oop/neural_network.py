@@ -55,6 +55,7 @@ class TFNeuralNetwork(object):
         _iter_count                 Numeric total training iteration count.
         _epoch                      Numeric current training epoch value.
         _epoch_count                Numeric total training epoch count.
+        _last_log_time              Last logging time.
         _local_variables_initializer Local variables initializer.
 
     """
@@ -71,6 +72,7 @@ class TFNeuralNetwork(object):
                  '_fit_checkpoint', '_vis_checkpoint',
                  '_iteration', '_iter_count',
                  '_epoch', '_epoch_count',
+                 '_last_log_time',
                  '_local_variables_initializer']
 
     def __init__(self, log_dir, clear, reset_graph=True):
