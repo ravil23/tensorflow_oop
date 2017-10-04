@@ -487,8 +487,12 @@ class TFDataset(object):
                 reshaped_data = np.reshape(data, [-1])
             reshaped_mean = np.mean(reshaped_data, axis=0)
             reshaped_std = np.std(reshaped_data, axis=0)
+            
+            # Add safe std for excluding division to zero
+            safe_std = np.array(reshaped_std)
+            safe_std[safe_std == 0.] = 1.
 
-            normalized_data = (reshaped_data - reshaped_mean) / reshaped_std
+            normalized_data = (reshaped_data - reshaped_mean) / safe_std
 
             # Correct data shape and save normalization properties
             self.norm_mean = np.reshape(reshaped_mean, data_shape)
@@ -498,9 +502,15 @@ class TFDataset(object):
             # Save normalization properties
             self.norm_mean = np.mean(data)
             self.norm_std = np.std(data)
+            
+            # Add safe std for excluding division to zero
+            if self.norm_std == 0.:
+                safe_std = 1.
+            else:
+                safe_std = self.norm_std
 
             # Update dataset with normalized value
-            result_data = (data - self.norm_mean) / self.norm_std
+            result_data = (data - self.norm_mean) / safe_std
 
         self.norm_global = norm_global
         self.normalized = True
@@ -531,12 +541,22 @@ class TFDataset(object):
             reshaped_mean = np.reshape(self.norm_mean, [-1])
             reshaped_std = np.reshape(self.norm_std, [-1])
 
+            # Add safe std for excluding division to zero
+            safe_std = np.array(reshaped_std)
+            safe_std[safe_std == 0.] = 1.
+
             # Calculate unnormalized data
-            unnormalized_data = reshaped_data*reshaped_std +  reshaped_mean
+            unnormalized_data = reshaped_data*safe_std +  reshaped_mean
             result_data = np.reshape(unnormalized_data, [-1] + data_shape)
         else:
+            # Add safe std for excluding division to zero
+            if self.norm_std == 0.:
+                safe_std = 1.
+            else:
+                safe_std = self.norm_std
+
             # Calculate unnormalized data
-            result_data =  data*self.norm_std + self.norm_mean
+            result_data =  data*safe_std + self.norm_mean
 
         self.normalized = False
         return result_data
