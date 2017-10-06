@@ -106,7 +106,7 @@ class TFClassifier(TFNeuralNetwork):
             best_indices       Batch of best prediction indices.
 
         """
-        return self.sess.run([self.probabilities, self.predictions], feed_dict={
+        return self.sess.run([self.softmax, self.predictions], feed_dict={
             self.inputs: inputs_values,
         })
 
