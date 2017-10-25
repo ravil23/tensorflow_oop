@@ -49,7 +49,7 @@ def run(args):
     val_set.set_batch_size(args.batch_size, args.batch_positives_count)
     test_set = TFTripletset(mnist.test.images, mnist.test.labels)
     test_set.set_batch_size(args.batch_size, args.batch_positives_count)
-    print('Traininig  set shape: %s' % train_set.str_shape())
+    print('Training   set shape: %s' % train_set.str_shape())
     print('Validation set shape: %s' % val_set.str_shape())
     print('Testing    set shape: %s\n' % test_set.str_shape())
 

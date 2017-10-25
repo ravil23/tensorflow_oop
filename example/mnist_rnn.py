@@ -61,7 +61,7 @@ def run(args):
     reshaped_data = np.reshape(mnist.test.images, [-1, 28, 28])
     test_set = TFSequence(reshaped_data, mnist.test.labels)
     test_set.set_batch_size(args.batch_size)
-    print('Traininig  set shape: %s' % train_set.str_shape())
+    print('Training   set shape: %s' % train_set.str_shape())
     print('Validation set shape: %s' % val_set.str_shape())
     print('Testing    set shape: %s\n' % test_set.str_shape())
 
