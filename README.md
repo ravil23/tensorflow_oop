@@ -84,4 +84,4 @@ doxygen doc/config.txt
 ```
 
 ## ToDo
-1. Add word2vec implementation
+1. Add Docker image
